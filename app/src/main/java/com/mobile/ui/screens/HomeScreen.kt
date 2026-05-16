@@ -68,6 +68,7 @@ fun HomeScreen(onNavigateToAi: () -> Unit, onNavigateToProfile: () -> Unit, onNa
     
     var activeTab by remember { mutableStateOf("summary") }
     var selectedBank by remember { mutableStateOf<Bank?>(null) }
+    var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
     var showAddModal by remember { mutableStateOf(false) }
 
 
@@ -129,6 +130,7 @@ fun HomeScreen(onNavigateToAi: () -> Unit, onNavigateToProfile: () -> Unit, onNa
             colorFrom = preset?.colorFrom ?: "#4338CA",
             colorTo = preset?.colorTo ?: "#1E1B4B",
             logoText = preset?.logoText ?: bankName.take(3).uppercase(),
+            logoResId = preset?.logoResId,
             accounts = listOf(
                 Account(
                     id = "new-" + System.currentTimeMillis(),
@@ -369,7 +371,10 @@ fun HomeScreen(onNavigateToAi: () -> Unit, onNavigateToProfile: () -> Unit, onNa
             } else {
                 transactions.take(10).forEach { transaction ->
                     key(transaction.id) {
-                        TransactionItem(transaction)
+                        TransactionItem(
+                            transaction = transaction,
+                            onClick = { selectedTransaction = transaction }
+                        )
                         Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
@@ -396,6 +401,11 @@ fun HomeScreen(onNavigateToAi: () -> Unit, onNavigateToProfile: () -> Unit, onNa
         onAdd = { name, acc -> handleAddAccount(name, acc) }
     )
 
+    TransactionDetailSheet(
+        transaction = selectedTransaction,
+        onClose = { selectedTransaction = null }
+    )
+
 }
 
 @Composable
@@ -417,7 +427,7 @@ private fun HeaderIconButton(
 }
 
 @Composable
-fun TransactionItem(transaction: Transaction) {
+fun TransactionItem(transaction: Transaction, onClick: () -> Unit = {}) {
 
     val categoryIcon = when (transaction.category) {
         "Bills & Utilities" -> androidx.compose.material.icons.Icons.Default.List
@@ -433,6 +443,7 @@ fun TransactionItem(transaction: Transaction) {
             .clip(RoundedCornerShape(18.dp))
             .background(Color(0xFF0E1527))
             .border(0.5.dp, Color(0xFF1E293B), RoundedCornerShape(18.dp))
+            .clickable { onClick() }
             .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

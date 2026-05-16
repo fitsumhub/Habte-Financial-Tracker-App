@@ -12,8 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import androidx.compose.runtime.Composable
@@ -33,11 +32,13 @@ import androidx.compose.runtime.*
 // Data derived from FinanceRepository
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyticsScreen(onNavigateToAi: () -> Unit) {
     val context = LocalContext.current
     val banks by FinanceRepository.banks.collectAsState()
     val transactions by FinanceRepository.transactions.collectAsState()
+    var selectedBank by remember { mutableStateOf<com.mobile.data.Bank?>(null) }
     
     val total = Data.getTotalBalance(banks)
     
@@ -159,9 +160,7 @@ fun AnalyticsScreen(onNavigateToAi: () -> Unit) {
                                 )
                             )
                         )
-                        .clickable { 
-                            Toast.makeText(context, "${bank.name} analysis details coming soon", Toast.LENGTH_SHORT).show()
-                        }
+                        .clickable { selectedBank = bank }
                         .padding(16.dp)
                 ) {
                     Row(
@@ -264,6 +263,80 @@ fun AnalyticsScreen(onNavigateToAi: () -> Unit) {
 
                 }
             }
+        }
+    }
+
+    // Bank Detail Bottom Sheet
+    if (selectedBank != null) {
+        val bank = selectedBank!!
+        val bankTx = transactions.filter { it.bankShortName == bank.shortName }
+        val bankTotal = Data.getBankTotal(bank)
+        val income = bankTx.filter { it.type == "credit" }.sumOf { it.amount }
+        val expense = bankTx.filter { it.type == "debit" }.sumOf { it.amount }
+
+        ModalBottomSheet(
+            onDismissRequest = { selectedBank = null },
+            containerColor = Color(0xFF0A0F20),
+            dragHandle = null
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 14.dp, bottom = 48.dp)
+            ) {
+                Box(
+                    modifier = Modifier.width(36.dp).height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFF1A2240))
+                        .align(Alignment.CenterHorizontally)
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(bank.name, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("${bank.accounts.size} account(s) • ${bankTx.size} transactions", color = Color(0xFF64748B), fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AnalyticsStatBox(Modifier.weight(1f), "Balance", Data.formatBalance(bankTotal), Color(0xFF6366F1))
+                    AnalyticsStatBox(Modifier.weight(1f), "Income", Data.formatBalance(income), Color(0xFF10B981))
+                    AnalyticsStatBox(Modifier.weight(1f), "Expense", Data.formatBalance(expense), Color(0xFFEF4444))
+                }
+
+                if (bankTx.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text("Recent Transactions", color = Color(0xFF7B84A8), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 12.dp))
+                    bankTx.take(5).forEach { t ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(t.title, color = Color.White, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                            Text(
+                                "${if (t.type == "credit") "+" else ""}${Data.formatBalance(t.amount)}",
+                                color = if (t.type == "credit") Color(0xFF10B981) else Color.White,
+                                fontSize = 14.sp, fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnalyticsStatBox(modifier: Modifier, label: String, value: String, color: Color) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(color.copy(alpha = 0.1f))
+            .padding(14.dp)
+    ) {
+        Column {
+            Text(label, color = Color(0xFF7B84A8), fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(value, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

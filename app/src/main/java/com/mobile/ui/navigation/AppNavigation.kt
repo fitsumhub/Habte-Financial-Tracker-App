@@ -35,7 +35,7 @@ private data class NavItem(
 
 private val NAV_ITEMS = listOf(
     NavItem("analytics", Icons.Default.BarChart, "Analytics"),
-    NavItem("wallet", Icons.Default.CreditCard, "Wallet"),
+    NavItem("budget", Icons.Default.Savings, "Budget"),
     NavItem("home", Icons.Default.Home, "Home"),
     NavItem("tools", Icons.Default.Build, "Tools"),
     NavItem("settings", Icons.Default.Settings, "Settings")
@@ -167,16 +167,17 @@ fun AppNavigation() {
             when (currentRoute) {
                 "home"      -> HomeScreen(onNavigateToAi = { currentRoute = "ai_chat" }, onNavigateToProfile = { currentRoute = "profile" }, onNavigateToTransactionHistory = { currentRoute = "transaction_history" })
                 "analytics" -> AnalyticsScreen(onNavigateToAi = { currentRoute = "ai_chat" })
-                "wallet"    -> WalletScreen()
-                "tools"     -> ToolsScreen()
+                "budget"    -> BudgetScreen()
+                "tools"     -> ToolsScreen(onNavigate = { currentRoute = it })
                 "settings"  -> SettingsScreen()
                 "ai_chat"   -> AiChatScreen(onBack = { currentRoute = "home" })
                 "profile"   -> ProfileScreen(onBack = { currentRoute = "home" })
                 "transaction_history" -> TransactionHistoryScreen(onBack = { currentRoute = "home" })
-                "send_money" -> SendMoneyScreen(onBack = { currentRoute = "home" })
-                "alerts"    -> AlertsScreen(onBack = { currentRoute = "home" })
-                "security"  -> SecurityScreen(onBack = { currentRoute = "home" })
-                "export_data" -> ExportDataScreen(onBack = { currentRoute = "home" })
+                "send_money" -> SendMoneyScreen(onBack = { currentRoute = "tools" })
+                "alerts"    -> AlertsScreen(onBack = { currentRoute = "tools" })
+                "security"  -> SecurityScreen(onBack = { currentRoute = "tools" })
+                "export_data" -> ExportDataScreen(onBack = { currentRoute = "tools" })
+                "support"   -> SupportScreen(onBack = { currentRoute = "tools" })
             }
         }
     }

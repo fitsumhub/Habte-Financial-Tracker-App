@@ -34,6 +34,18 @@ object FinanceRepository {
         }
     }
 
+    fun updateBankColors(bankId: String, colorFrom: String, colorTo: String) {
+        _banks.update { current ->
+            current.map { bank ->
+                if (bank.id == bankId) {
+                    bank.copy(colorFrom = colorFrom, colorTo = colorTo)
+                } else {
+                    bank
+                }
+            }
+        }
+    }
+
     // BUG FIX: Proper sign-out clears ALL data
     fun clearAll() {
         _banks.value = emptyList()
@@ -44,6 +56,14 @@ object FinanceRepository {
     fun addTransaction(transaction: Transaction) {
         _transactions.update { current ->
             (listOf(transaction) + current).sortedByDescending { it.date }
+        }
+    }
+
+    fun updateTransactionCategory(transactionId: String, newCategory: String) {
+        _transactions.update { current ->
+            current.map {
+                if (it.id == transactionId) it.copy(category = newCategory) else it
+            }
         }
     }
 

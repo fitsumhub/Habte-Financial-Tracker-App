@@ -17,6 +17,9 @@ import androidx.compose.ui.graphics.Brush
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -119,7 +122,7 @@ fun AddBankModal(
                             .padding(vertical = 10.dp)
 
                     ) {
-                        BankLogoSmall(preset.logoText, isSelected)
+                        BankLogoSmall(preset.logoText, isSelected, preset.logoResId)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = preset.shortName,
@@ -220,15 +223,26 @@ fun AddBankModal(
 }
 
 @Composable
-private fun BankLogoSmall(text: String, isSelected: Boolean) {
+private fun BankLogoSmall(text: String, isSelected: Boolean, logoResId: Int?) {
     Box(
         modifier = Modifier
             .size(32.dp)
             .clip(CircleShape)
-            .background(if (isSelected) Color(0xFF6366F1) else Color(0xFF1A2240)),
+            .background(if (logoResId != null) Color.White else if (isSelected) Color(0xFF6366F1) else Color(0xFF1A2240)),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+        if (logoResId != null) {
+            Image(
+                painter = painterResource(id = logoResId),
+                contentDescription = text,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(if (text == "DAS") 4.dp else 0.dp),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Text(text, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+        }
     }
 }
 

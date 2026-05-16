@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 fun TransactionHistoryScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val transactions by FinanceRepository.transactions.collectAsState()
+    var selectedTransaction by remember { mutableStateOf<com.mobile.data.Transaction?>(null) }
 
     Column(
         modifier = Modifier
@@ -97,16 +98,24 @@ fun TransactionHistoryScreen(onBack: () -> Unit) {
                 }
             } else {
                 transactions.forEach { transaction ->
-                    HistoryTransactionItem(transaction)
+                    HistoryTransactionItem(
+                        transaction = transaction,
+                        onClick = { selectedTransaction = transaction }
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
         }
+        
+        com.mobile.ui.components.TransactionDetailSheet(
+            transaction = selectedTransaction,
+            onClose = { selectedTransaction = null }
+        )
     }
 }
 
 @Composable
-private fun HistoryTransactionItem(transaction: com.mobile.data.Transaction) {
+private fun HistoryTransactionItem(transaction: com.mobile.data.Transaction, onClick: () -> Unit = {}) {
     val categoryIcon = when (transaction.category) {
         "Bills & Utilities" -> Icons.Default.List
         "Food & Dining" -> Icons.Default.ShoppingCart
@@ -121,6 +130,7 @@ private fun HistoryTransactionItem(transaction: com.mobile.data.Transaction) {
             .clip(RoundedCornerShape(18.dp))
             .background(Color(0xFF0E1527))
             .border(0.5.dp, Color(0xFF1E293B), RoundedCornerShape(18.dp))
+            .clickable { onClick() }
             .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

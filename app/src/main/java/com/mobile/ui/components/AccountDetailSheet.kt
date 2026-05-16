@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,6 +24,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mobile.data.Bank
 import com.mobile.data.Data
+import com.mobile.data.FinanceRepository
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,7 +66,7 @@ fun AccountDetailSheet(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BankLogo(shortName = bank.logoText, size = 42.dp, fontSize = 11.sp)
+                BankLogo(shortName = bank.logoText, size = 42.dp, fontSize = 11.sp, resId = bank.logoResId)
 
                 Spacer(modifier = Modifier.width(12.dp))
 
@@ -162,6 +166,55 @@ fun AccountDetailSheet(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+
+            // Appearance Section
+            Text(
+                "Customize Card Style",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            val colorPresets = listOf(
+                Pair("#4338CA", "#1E1B4B"), // Indigo
+                Pair("#1E40AF", "#1E3A8A"), // Blue
+                Pair("#0891B2", "#164E63"), // Cyan
+                Pair("#059669", "#064E3B"), // Emerald
+                Pair("#F59E0B", "#B45309"), // Amber
+                Pair("#E11D48", "#881337"), // Rose
+                Pair("#7C3AED", "#4C1D95"), // Violet
+                Pair("#1F2937", "#111827")  // Dark
+            )
+
+            val haptic = LocalHapticFeedback.current
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                colorPresets.forEach { (from, to) ->
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(listOf(Color(parseColor(from)), Color(parseColor(to))))
+                            )
+                            .border(
+                                if (bank.colorFrom == from) 2.dp else 0.dp,
+                                Color.White,
+                                CircleShape
+                            )
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                FinanceRepository.updateBankColors(bank.id, from, to)
+                            }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             // Delete Button
             Button(

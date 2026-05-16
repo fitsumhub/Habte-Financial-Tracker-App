@@ -1,0 +1,8 @@
+{
+    "emulator.path": "C:\\Users\\APLUS\\AppData\\Local\\Android\\Sdk\\emulator\\emulator.exe",
+    "emulator.emulatorPath": "C:\\Users\\APLUS\\AppData\\Local\\Android\\Sdk\\emulator\\emulator.exe",
+    "android-ios-emulator.emulatorPath": "C:\\Users\\APLUS\\AppData\\Local\\Android\\Sdk\\emulator\\emulator.exe",
+    "android-emulator.sdkPath": "C:\\Users\\APLUS\\AppData\\Local\\Android\\Sdk",
+    "android.sdkPath": "C:\\Users\\APLUS\\AppData\\Local\\Android\\Sdk",
+    "android.adbPath": "C:\\Users\\APLUS\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe"
+}
