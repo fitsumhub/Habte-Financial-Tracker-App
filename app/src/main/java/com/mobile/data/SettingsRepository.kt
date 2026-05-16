@@ -41,6 +41,9 @@ object SettingsRepository {
     private val _theme = MutableStateFlow("Dark")
     val theme: StateFlow<String> = _theme.asStateFlow()
 
+    private val _appPin = MutableStateFlow("1234") // Default PIN
+    val appPin: StateFlow<String> = _appPin.asStateFlow()
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _biometricEnabled.value = prefs.getBoolean("biometric", true)
@@ -53,6 +56,7 @@ object SettingsRepository {
         _language.value = prefs.getString("language", "English") ?: "English"
         _dateFormat.value = prefs.getString("date_format", "MM/DD/YYYY") ?: "MM/DD/YYYY"
         _theme.value = prefs.getString("theme", "Dark") ?: "Dark"
+        _appPin.value = prefs.getString("app_pin", "1234") ?: "1234"
     }
 
     fun setBiometric(enabled: Boolean) {
@@ -103,5 +107,10 @@ object SettingsRepository {
     fun setTheme(value: String) {
         _theme.value = value
         prefs.edit().putString("theme", value).apply()
+    }
+
+    fun setAppPin(value: String) {
+        _appPin.value = value
+        prefs.edit().putString("app_pin", value).apply()
     }
 }

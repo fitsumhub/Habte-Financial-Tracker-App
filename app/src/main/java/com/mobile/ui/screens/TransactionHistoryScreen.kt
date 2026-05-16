@@ -117,10 +117,11 @@ fun TransactionHistoryScreen(onBack: () -> Unit) {
 @Composable
 private fun HistoryTransactionItem(transaction: com.mobile.data.Transaction, onClick: () -> Unit = {}) {
     val categoryIcon = when (transaction.category) {
-        "Bills & Utilities" -> Icons.Default.List
-        "Food & Dining" -> Icons.Default.ShoppingCart
-        "Transfers" -> Icons.Default.Sync
-        "Income" -> Icons.Default.KeyboardArrowUp
+        "Bills", "Bills & Utilities", "Rent" -> Icons.Default.List
+        "Food", "Food & Dining" -> Icons.Default.ShoppingCart
+        "Transfer", "Transfers", "Lend" -> Icons.Default.Sync
+        "Income", "Salary" -> Icons.Default.KeyboardArrowUp
+        "Shopping", "Cosmetics" -> Icons.Default.ShoppingCart
         else -> Icons.Default.Info
     }
 
@@ -161,6 +162,13 @@ private fun HistoryTransactionItem(transaction: com.mobile.data.Transaction, onC
                     maxLines = 1
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        transaction.category,
+                        color = Color(0xFFE2E8F0), 
+                        fontSize = 11.sp, 
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(" • ", color = Color(0xFF334155), fontSize = 11.sp)
                     Text(
                         transaction.bankShortName, 
                         color = Color(0xFF818CF8), 

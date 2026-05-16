@@ -1,6 +1,9 @@
 package com.mobile.ui.screens
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,7 +14,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,11 +24,66 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mobile.data.FinanceRepository
+import java.io.OutputStreamWriter
+import org.json.JSONArray
+import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExportDataScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val transactions by FinanceRepository.transactions.collectAsState()
+
+    val createCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                context.contentResolver.openOutputStream(it)?.use { outputStream ->
+                    val writer = OutputStreamWriter(outputStream)
+                    val csv = java.lang.StringBuilder("Date,Title,Amount,Type,Category,Bank\n")
+                    transactions.forEach { t ->
+                        csv.append("${t.date},${t.title},${t.amount},${t.type},${t.category},${t.bankShortName}\n")
+                    }
+                    writer.write(csv.toString())
+                    writer.flush()
+                }
+                Toast.makeText(context, "CSV saved successfully!", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to save: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val createJsonLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                context.contentResolver.openOutputStream(it)?.use { outputStream ->
+                    val writer = OutputStreamWriter(outputStream)
+                    val jsonArray = JSONArray()
+                    transactions.forEach { t ->
+                        val obj = JSONObject()
+                        obj.put("id", t.id)
+                        obj.put("title", t.title)
+                        obj.put("amount", t.amount)
+                        obj.put("type", t.type)
+                        obj.put("date", t.date)
+                        obj.put("category", t.category)
+                        obj.put("bankShortName", t.bankShortName)
+                        jsonArray.put(obj)
+                    }
+                    writer.write(jsonArray.toString(4))
+                    writer.flush()
+                }
+                Toast.makeText(context, "JSON saved successfully!", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to save: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -70,7 +128,11 @@ fun ExportDataScreen(onBack: () -> Unit) {
                 subtitle = "Best for Excel or Google Sheets",
                 icon = Icons.Default.Description,
                 onClick = {
-                    Toast.makeText(context, "Exporting transactions to CSV...", Toast.LENGTH_SHORT).show()
+                    if (transactions.isEmpty()) {
+                        Toast.makeText(context, "No transactions to export.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        createCsvLauncher.launch("Habte_Export_${System.currentTimeMillis()}.csv")
+                    }
                 }
             )
 
@@ -82,7 +144,11 @@ fun ExportDataScreen(onBack: () -> Unit) {
                 subtitle = "Raw data for developers or backup",
                 icon = Icons.Default.Code,
                 onClick = {
-                    Toast.makeText(context, "Generating JSON backup...", Toast.LENGTH_SHORT).show()
+                    if (transactions.isEmpty()) {
+                        Toast.makeText(context, "No transactions to export.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        createJsonLauncher.launch("Habte_Export_${System.currentTimeMillis()}.json")
+                    }
                 }
             )
         }

@@ -98,10 +98,21 @@ fun SupportScreen(onBack: () -> Unit) {
             SupportContactRow(
                 icon = Icons.Default.Email,
                 title = "Email Us",
-                subtitle = "support@habte.com",
+                subtitle = "Fitsumenunu21@gmail.com",
                 color = Color(0xFF6366F1),
                 onClick = {
-                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:support@habte.com"))
+                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:Fitsumenunu21@gmail.com"))
+                    context.startActivity(intent)
+                }
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            SupportContactRow(
+                icon = Icons.Default.Send,
+                title = "Telegram",
+                subtitle = "@AplusHustler",
+                color = Color(0xFF0EA5E9),
+                onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/AplusHustler"))
                     context.startActivity(intent)
                 }
             )

@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 
 @Composable
 fun BankLogo(
@@ -25,17 +26,27 @@ fun BankLogo(
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
     fontSize: TextUnit = 12.sp,
-    resId: Int? = null
+    resId: Int? = null,
+    domain: String? = null
 ) {
     Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (resId != null) Color.White else Color(0x2EFFFFFF))
+            .background(if (resId != null || domain != null) Color.White else Color(0x2EFFFFFF))
             .border(1.dp, Color(0x40FFFFFF), CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        if (resId != null) {
+        if (domain != null) {
+            AsyncImage(
+                model = "https://www.google.com/s2/favicons?domain=${domain}&sz=128",
+                contentDescription = shortName,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(if (shortName == "DAS") 6.dp else 0.dp),
+                contentScale = ContentScale.Fit
+            )
+        } else if (resId != null) {
             Image(
                 painter = painterResource(id = resId),
                 contentDescription = shortName,

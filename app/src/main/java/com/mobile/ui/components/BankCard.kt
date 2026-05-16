@@ -96,7 +96,7 @@ fun BankCard(
 
 
         Column {
-            BankLogo(shortName = bank.logoText, size = 42.dp, fontSize = 11.sp, resId = bank.logoResId)
+            BankLogo(shortName = bank.logoText, size = 42.dp, fontSize = 11.sp, resId = bank.logoResId, domain = bank.domain)
 
             Spacer(modifier = Modifier.height(10.dp))
 

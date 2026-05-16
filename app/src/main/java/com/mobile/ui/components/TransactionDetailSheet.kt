@@ -34,7 +34,9 @@ fun TransactionDetailSheet(
 ) {
     if (transaction == null) return
 
-    val categories = listOf("Food & Dining", "Bills & Utilities", "Transfers", "Income", "Lend", "Cosmetics", "Other")
+    val baseCategories = listOf("Food", "Bills", "Transfer", "Income", "Lend", "Cosmetics", "Transport", "Shopping", "Entertainment", "Other")
+
+    var customCategory by remember { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onClose,
@@ -134,7 +136,7 @@ fun TransactionDetailSheet(
             )
 
             // Category Selection Chips
-            val chunkedCategories = categories.chunked(3)
+            val chunkedCategories = baseCategories.chunked(3)
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 chunkedCategories.forEach { rowCategories ->
                     Row(
@@ -158,7 +160,8 @@ fun TransactionDetailSheet(
                                     category,
                                     color = if (isSelected) Color.White else Color(0xFF7B84A8),
                                     fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
                                 )
                             }
                         }
@@ -169,6 +172,45 @@ fun TransactionDetailSheet(
                             }
                         }
                     }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Custom Category Input
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = customCategory,
+                    onValueChange = { customCategory = it },
+                    placeholder = { Text("Or enter custom reason", color = Color(0xFF3A4268)) },
+                    modifier = Modifier.weight(1f),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFF0E1527),
+                        unfocusedContainerColor = Color(0xFF0E1527),
+                        focusedBorderColor = Color(0xFF6366F1),
+                        unfocusedBorderColor = Color(0xFF1A2240),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Button(
+                    onClick = {
+                        if (customCategory.isNotBlank()) {
+                            FinanceRepository.updateTransactionCategory(transaction.id, customCategory)
+                            customCategory = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.height(56.dp)
+                ) {
+                    Text("Save", fontWeight = FontWeight.Bold)
                 }
             }
             

@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 
 import com.mobile.data.Data
 import com.mobile.data.Bank
@@ -122,7 +123,7 @@ fun AddBankModal(
                             .padding(vertical = 10.dp)
 
                     ) {
-                        BankLogoSmall(preset.logoText, isSelected, preset.logoResId)
+                        BankLogoSmall(preset.logoText, isSelected, preset.logoResId, preset.domain)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = preset.shortName,
@@ -223,15 +224,24 @@ fun AddBankModal(
 }
 
 @Composable
-private fun BankLogoSmall(text: String, isSelected: Boolean, logoResId: Int?) {
+private fun BankLogoSmall(text: String, isSelected: Boolean, logoResId: Int?, domain: String? = null) {
     Box(
         modifier = Modifier
             .size(32.dp)
             .clip(CircleShape)
-            .background(if (logoResId != null) Color.White else if (isSelected) Color(0xFF6366F1) else Color(0xFF1A2240)),
+            .background(if (logoResId != null || domain != null) Color.White else if (isSelected) Color(0xFF6366F1) else Color(0xFF1A2240)),
         contentAlignment = Alignment.Center
     ) {
-        if (logoResId != null) {
+        if (domain != null) {
+            AsyncImage(
+                model = "https://www.google.com/s2/favicons?domain=${domain}&sz=128",
+                contentDescription = text,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(if (text == "DAS") 4.dp else 0.dp),
+                contentScale = ContentScale.Fit
+            )
+        } else if (logoResId != null) {
             Image(
                 painter = painterResource(id = logoResId),
                 contentDescription = text,

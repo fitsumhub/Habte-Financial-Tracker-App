@@ -173,7 +173,6 @@ fun AppNavigation() {
                 "ai_chat"   -> AiChatScreen(onBack = { currentRoute = "home" })
                 "profile"   -> ProfileScreen(onBack = { currentRoute = "home" })
                 "transaction_history" -> TransactionHistoryScreen(onBack = { currentRoute = "home" })
-                "send_money" -> SendMoneyScreen(onBack = { currentRoute = "tools" })
                 "alerts"    -> AlertsScreen(onBack = { currentRoute = "tools" })
                 "security"  -> SecurityScreen(onBack = { currentRoute = "tools" })
                 "export_data" -> ExportDataScreen(onBack = { currentRoute = "tools" })

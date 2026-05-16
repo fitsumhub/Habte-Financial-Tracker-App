@@ -497,15 +497,14 @@ fun SettingsScreen() {
         AlertDialog(
             onDismissRequest = { showSignOutConfirm = false },
             title = { Text("Sign Out?", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = { Text("This will clear all your local transaction data and accounts. This action cannot be undone.", color = Color(0xFF9CA3AF)) },
+            text = { Text("Are you sure you want to sign out of your account?", color = Color(0xFF9CA3AF)) },
             containerColor = Color(0xFF1E293B),
             shape = RoundedCornerShape(24.dp),
             confirmButton = {
                 TextButton(
                     onClick = { 
-                        FinanceRepository.clearAll()
                         showSignOutConfirm = false
-                        Toast.makeText(context, "All data cleared successfully.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Signed out successfully.", Toast.LENGTH_LONG).show()
                     }
                 ) {
                     Text("Confirm Sign Out", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)

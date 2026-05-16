@@ -44,7 +44,7 @@ fun ProfileScreen(onBack: () -> Unit) {
 
     var isEditing by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("Account Holder") }
-    var email by remember { mutableStateOf("habte@example.com") }
+    var email by remember { mutableStateOf("Fitsumenunu21@gmail.com") }
 
     val totalAccounts = banks.sumOf { it.accounts.size }
     val totalBalance = Data.getTotalBalance(banks)
@@ -306,7 +306,6 @@ fun ProfileScreen(onBack: () -> Unit) {
                     .background(Color(0xFF7F1D1D).copy(alpha = 0.15f))
                     .border(1.dp, Color(0xFF7F1D1D).copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                     .clickable {
-                        FinanceRepository.clearAll()
                         Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
                         onBack()
                     }

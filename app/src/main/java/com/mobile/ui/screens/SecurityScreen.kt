@@ -29,7 +29,10 @@ fun SecurityScreen(onBack: () -> Unit) {
     val biometricEnabled by SettingsRepository.biometricEnabled.collectAsState()
     val autoHideBalances by SettingsRepository.autoHideBalances.collectAsState()
     val privacyMode by SettingsRepository.privacyMode.collectAsState()
+    val currentPin by SettingsRepository.appPin.collectAsState()
     val context = LocalContext.current
+
+    var showChangePinModal by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -101,7 +104,7 @@ fun SecurityScreen(onBack: () -> Unit) {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF0E1527))
-                    .clickable { Toast.makeText(context, "Change PIN flow...", Toast.LENGTH_SHORT).show() }
+                    .clickable { showChangePinModal = true }
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -122,6 +125,18 @@ fun SecurityScreen(onBack: () -> Unit) {
                 Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF64748B))
             }
         }
+    }
+
+    if (showChangePinModal) {
+        ChangePinModal(
+            currentPin = currentPin,
+            onClose = { showChangePinModal = false },
+            onPinChanged = { newPin ->
+                SettingsRepository.setAppPin(newPin)
+                Toast.makeText(context, "PIN successfully updated!", Toast.LENGTH_SHORT).show()
+                showChangePinModal = false
+            }
+        )
     }
 }
 
@@ -165,5 +180,106 @@ fun SecuritySettingRow(
                 uncheckedTrackColor = Color(0xFF1E293B)
             )
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChangePinModal(currentPin: String, onClose: () -> Unit, onPinChanged: (String) -> Unit) {
+    var step by remember { mutableStateOf(1) } // 1: Old PIN, 2: New PIN, 3: Confirm New PIN
+    var oldPinInput by remember { mutableStateOf("") }
+    var newPinInput by remember { mutableStateOf("") }
+    var confirmPinInput by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    ModalBottomSheet(
+        onDismissRequest = onClose,
+        containerColor = Color(0xFF0A0F20)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+                .padding(bottom = 40.dp)
+        ) {
+            Text(
+                "Change App PIN",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            
+            Text(
+                when (step) {
+                    1 -> "Enter your current 4-digit PIN."
+                    2 -> "Enter your new 4-digit PIN."
+                    else -> "Confirm your new 4-digit PIN."
+                },
+                color = Color(0xFF94A3B8),
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
+
+            val (currentInput, onInputChange) = when (step) {
+                1 -> oldPinInput to { it: String -> if (it.length <= 4) { oldPinInput = it; errorMessage = null } }
+                2 -> newPinInput to { it: String -> if (it.length <= 4) { newPinInput = it; errorMessage = null } }
+                else -> confirmPinInput to { it: String -> if (it.length <= 4) { confirmPinInput = it; errorMessage = null } }
+            }
+
+            OutlinedTextField(
+                value = currentInput,
+                onValueChange = onInputChange,
+                placeholder = { Text("****", color = Color(0xFF3A4268)) },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF0E1527),
+                    unfocusedContainerColor = Color(0xFF0E1527),
+                    focusedBorderColor = Color(0xFF818CF8),
+                    unfocusedBorderColor = Color(0xFF1A2240),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                ),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
+            )
+
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage!!,
+                    color = Color(0xFFEF4444),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            Button(
+                onClick = {
+                    if (currentInput.length != 4) {
+                        errorMessage = "PIN must be exactly 4 digits."
+                        return@Button
+                    }
+                    when (step) {
+                        1 -> {
+                            if (oldPinInput == currentPin) step = 2
+                            else errorMessage = "Incorrect PIN."
+                        }
+                        2 -> step = 3
+                        3 -> {
+                            if (confirmPinInput == newPinInput) onPinChanged(newPinInput)
+                            else errorMessage = "PINs do not match."
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                modifier = Modifier.fillMaxWidth().height(50.dp)
+            ) { Text("Continue", fontWeight = FontWeight.Bold) }
+        }
     }
 }

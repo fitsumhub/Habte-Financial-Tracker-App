@@ -430,10 +430,11 @@ private fun HeaderIconButton(
 fun TransactionItem(transaction: Transaction, onClick: () -> Unit = {}) {
 
     val categoryIcon = when (transaction.category) {
-        "Bills & Utilities" -> androidx.compose.material.icons.Icons.Default.List
-        "Food & Dining" -> androidx.compose.material.icons.Icons.Default.ShoppingCart
-        "Transfers" -> androidx.compose.material.icons.Icons.Default.Sync
-        "Income" -> androidx.compose.material.icons.Icons.Default.KeyboardArrowUp
+        "Bills", "Bills & Utilities", "Rent" -> androidx.compose.material.icons.Icons.Default.List
+        "Food", "Food & Dining" -> androidx.compose.material.icons.Icons.Default.ShoppingCart
+        "Transfer", "Transfers", "Lend" -> androidx.compose.material.icons.Icons.Default.Sync
+        "Income", "Salary" -> androidx.compose.material.icons.Icons.Default.KeyboardArrowUp
+        "Shopping", "Cosmetics" -> androidx.compose.material.icons.Icons.Default.ShoppingCart
         else -> androidx.compose.material.icons.Icons.Default.Info
     }
 
@@ -474,6 +475,13 @@ fun TransactionItem(transaction: Transaction, onClick: () -> Unit = {}) {
                     maxLines = 1
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        transaction.category,
+                        color = Color(0xFFE2E8F0), 
+                        fontSize = 11.sp, 
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(" • ", color = Color(0xFF334155), fontSize = 11.sp)
                     Text(
                         transaction.bankShortName, 
                         color = Color(0xFF818CF8), 
