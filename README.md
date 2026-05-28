@@ -39,6 +39,12 @@ Habte (ሀብቴ) is a premium, secure, and highly automated personal finance tr
 
 ---
 
+## 📚 Documentation
+
+Full project documentation — architecture, setup, API reference, SMS parsing, security, and testing — is available in **[DOCUMENTATION.md](DOCUMENTATION.md)**.
+
+---
+
 ## 📥 Installation
 
 1.  **Clone the Repository:**
