@@ -4,6 +4,21 @@ Habte (ሀብቴ) is a premium, secure, and highly automated personal finance tr
 
 ---
 
+## 📸 Screenshots
+
+<p align="center">
+  <img src="assets/screenshots/home-screen.png" alt="Home Dashboard" width="220" />
+  <img src="assets/screenshots/analytics-screen.png" alt="Analytics" width="220" />
+  <img src="assets/screenshots/ai-chat-screen.png" alt="Habte AI Pro" width="220" />
+  <img src="assets/screenshots/tools-screen.png" alt="Financial Tools" width="220" />
+</p>
+
+| Home Dashboard | Analytics | Habte AI Pro | Financial Tools |
+|:---:|:---:|:---:|:---:|
+| Total balance, bank cards & recent transactions | Spending trends & category breakdown | AI-powered ETB finance coach | Calculators, export & security tools |
+
+---
+
 ## ✨ Key Features
 
 ### 🚀 Automated Transaction Sync
