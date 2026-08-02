@@ -311,19 +311,20 @@ fun ProfileScreen(onBack: () -> Unit) {
             AlertDialog(
                 onDismissRequest = { showSignOutConfirm = false },
                 title = { Text("Sign Out?", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
-                text = { Text("Habte stores your data only on this device — signing out permanently deletes all synced transactions, accounts, and budgets. This can't be undone.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                text = { Text("Habte has no cloud account to sign out of — your data stays safely on this device. Signing out just closes the app; reopen it anytime and everything will be exactly as you left it.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 containerColor = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(24.dp),
                 confirmButton = {
                     TextButton(
                         onClick = {
                             showSignOutConfirm = false
-                            FinanceRepository.clearAll()
-                            Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
-                            onBack()
+                            (context as? android.app.Activity)?.let { activity ->
+                                activity.finishAffinity()
+                                android.os.Process.killProcess(android.os.Process.myPid())
+                            }
                         }
                     ) {
-                        Text("Confirm Sign Out", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
+                        Text("Close App", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {

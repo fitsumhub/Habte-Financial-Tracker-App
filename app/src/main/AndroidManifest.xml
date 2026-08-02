@@ -73,10 +73,13 @@
           Only the system can bind to a NotificationListenerService (enforced by this
           android:permission — a normal app can't bind to it directly), and only after the
           user manually grants it in Settings > Notification access (see
-          NotificationCaptureScreen, Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).
-          Reading notification content is still gated further at runtime by
-          SettingsRepository.notificationCaptureEnabled + monitoredApps — granting this OS
-          permission alone doesn't turn capture on.
+          NotificationCaptureScreen, Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) — that
+          OS-level grant is the real consent gate, since Android requires it to be a deliberate
+          action in system Settings. Once granted, capture is automatic: onListenerConnected()
+          auto-enables every matching bank/wallet app it finds installed (see
+          SettingsRepository.autoEnableDetectedApps), no further per-app setup needed. The
+          per-package allowlist (SettingsRepository.monitoredApps) is still checked before any
+          notification content is read — a notification from any other app is never inspected.
         -->
         <service
             android:name=".data.NotificationCaptureListenerService"

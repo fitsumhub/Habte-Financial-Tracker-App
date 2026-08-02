@@ -21,32 +21,63 @@
     th { background: #1f1f27 !important; }
     td, th { border-color: #2c2c34 !important; }
     a { color: #a5a8ff; }
+    .toc { background: #16161b !important; border-color: #2c2c34 !important; }
   }
   h1 { font-size: 1.9rem; margin-bottom: 4px; }
-  .updated { color: #667085; font-size: 0.9rem; margin-bottom: 32px; }
+  .updated { color: #667085; font-size: 0.9rem; margin-bottom: 28px; }
   h2 { margin-top: 2.2em; font-size: 1.25rem; border-bottom: 1px solid #e7eaee; padding-bottom: 6px; }
+  h3 { margin-top: 1.6em; font-size: 1.05rem; }
   table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.92rem; }
   th, td { text-align: left; padding: 10px 12px; border: 1px solid #e7eaee; vertical-align: top; }
   th { background: #f1f4f8; }
   a { color: #4f46e5; }
   code { background: rgba(127,127,127,0.15); padding: 2px 5px; border-radius: 4px; font-size: 0.9em; }
   .callout { background: rgba(79,70,229,0.08); border-left: 3px solid #4f46e5; padding: 12px 16px; border-radius: 6px; margin: 1em 0; }
+  .toc { background: #ffffff; border: 1px solid #e7eaee; border-radius: 10px; padding: 16px 20px; margin: 1.5em 0; }
+  .toc p { margin: 0 0 8px; font-weight: 600; }
+  .toc ol { margin: 0; padding-left: 1.2em; }
+  .toc li { margin-bottom: 4px; }
 </style>
 </head>
 <body>
 
 <h1>Privacy Policy — Habte Financial Tracker</h1>
-<p class="updated">Last updated: 2026-07-30</p>
+<p class="updated">Last updated: 2026-08-02 · Applies to the Habte (ሀብቴ) Android app</p>
 
-<p>Habte (ሀብቴ) ("the app", "we", "our") is developed for the Ethiopian market to help users track their finances automatically from bank and Telebirr SMS notifications. This policy explains what data the app accesses, what stays on your device, and what — if anything — is shared with third parties.</p>
+<p>Habte ("the app", "we", "our") is a personal finance tracker built for the Ethiopian market. It automatically detects transactions from bank and mobile wallet SMS (and, optionally, app notifications), so you don't have to enter them by hand. This policy explains exactly what the app can access, what happens to it, and what — if anything — is shared with anyone else.</p>
 
-<h2>1. Data We Access and Why</h2>
+<div class="callout">
+<strong>In short:</strong> Habte runs entirely on your phone. There is no account to create, no cloud sync, and no server of ours that your financial data is ever sent to. The only outside network connections the app makes are to show ads (Google AdMob) and to fetch bank logo images (Google's public favicon service) — neither of those ever receives your SMS content, transactions, balances, or any other financial data.
+</div>
+
+<div class="toc">
+<p>Contents</p>
+<ol>
+<li><a href="#data">Data We Access and Why</a></li>
+<li><a href="#device">What Never Leaves Your Device</a></li>
+<li><a href="#third-party">Third-Party Services</a></li>
+<li><a href="#choices">Your Choices &amp; Control</a></li>
+<li><a href="#security">Security</a></li>
+<li><a href="#retention">Data Retention &amp; Deletion</a></li>
+<li><a href="#children">Children's Privacy</a></li>
+<li><a href="#international">International Users</a></li>
+<li><a href="#changes">Changes to This Policy</a></li>
+<li><a href="#contact">Contact</a></li>
+</ol>
+</div>
+
+<h2 id="data">1. Data We Access and Why</h2>
 <table>
 <tr><th>Data</th><th>Why we need it</th><th>Where it goes</th></tr>
 <tr>
   <td>SMS messages (<code>READ_SMS</code>, <code>RECEIVE_SMS</code>)</td>
-  <td>To detect and parse transaction notifications from supported banks and Telebirr, so you don't have to enter transactions manually. Only messages matching a known bank/Telebirr sender pattern are parsed into a transaction; everything else is ignored and never stored.</td>
+  <td>To detect and parse transaction notifications from supported banks and mobile wallets, so you don't have to enter transactions manually. Only messages matching a known bank/wallet sender pattern are parsed into a transaction; everything else is ignored and never stored.</td>
   <td><strong>Stays on your device only.</strong> Parsed transactions are stored in a local database. Raw SMS content is never uploaded, copied, or transmitted anywhere.</td>
+</tr>
+<tr>
+  <td>Notification content (optional — Android Notification Access)</td>
+  <td>An alternative transaction-capture path for banks/wallets that push an app notification instead of (or in addition to) SMS. Off by default even after the system permission is granted; only notifications from apps you explicitly select in <strong>Settings → Notification Capture</strong> are ever inspected — every other notification on your device (messages, social apps, everything else) is left completely alone.</td>
+  <td><strong>Stays on your device only.</strong> Parsed the same way as SMS, into the same local database. Never transmitted anywhere.</td>
 </tr>
 <tr>
   <td>Biometric data (fingerprint/face, via <code>USE_BIOMETRIC</code>)</td>
@@ -56,16 +87,16 @@
 <tr>
   <td>App PIN</td>
   <td>An alternative/backup way to lock the app.</td>
-  <td>Stored on-device only, as a salted PBKDF2 hash — never in plain text, never transmitted.</td>
+  <td>Stored on-device only, as a salted PBKDF2 hash (12,000 iterations) — never in plain text, never transmitted.</td>
 </tr>
 <tr>
-  <td>Account balances, transaction history, budgets, payment reminders</td>
-  <td>Core app functionality — showing you your financial picture and reminding you about upcoming bills.</td>
+  <td>Account balances, transaction history, budgets, payment reminders, certificates</td>
+  <td>Core app functionality — showing you your financial picture, reminding you about upcoming bills, and generating achievement certificates from your real activity.</td>
   <td><strong>Stays on your device only</strong>, in a local database.</td>
 </tr>
 <tr>
-  <td>Optional profile name/email you enter</td>
-  <td>Personalizing the app and labeling exported statements.</td>
+  <td>Optional profile name/email/photo you enter</td>
+  <td>Personalizing the app, labeling exported statements, and appearing on generated certificates.</td>
   <td><strong>Stays on your device only.</strong> Not transmitted anywhere; no account system or backend exists to send it to.</td>
 </tr>
 <tr>
@@ -75,40 +106,57 @@
 </tr>
 </table>
 
-<h2>2. What Never Leaves Your Device</h2>
+<h2 id="device">2. What Never Leaves Your Device</h2>
 <ul>
   <li>Your SMS content and parsed transactions</li>
-  <li>Your account, bank, and balance data</li>
-  <li>Your budgets and payment reminders</li>
+  <li>Any notification content read via Notification Capture</li>
+  <li>Your account, bank, and balance data, including any account numbers you enter</li>
+  <li>Your budgets, payment reminders, and generated certificates (including any photo used on one)</li>
   <li>Your PIN, biometric authentication result, and any profile info you enter</li>
   <li>Crash reports</li>
 </ul>
-<div class="callout"><strong>There is no cloud sync, no account/login system, and no backend server operated by us that any of this data is sent to.</strong></div>
+<div class="callout"><strong>There is no cloud sync, no account/login system, and no backend server operated by us that any of this data is sent to.</strong> Everything above is read and processed entirely on your device.</div>
 
-<h2>3. Third-Party Services</h2>
-<p>The app uses two third-party services, both of which involve limited network requests:</p>
+<h2 id="third-party">3. Third-Party Services</h2>
+<p>The app uses two third-party services, both involving limited, specific network requests:</p>
 
 <h3>Google AdMob (advertising)</h3>
-<p>The app displays ads via Google's AdMob SDK (banner, interstitial, rewarded, and native ad formats) to support free use of the app. AdMob may collect an advertising identifier and request metadata (device/app information, approximate location derived from IP, etc.) to serve and measure ads, per <a href="https://policies.google.com/technologies/ads">Google's advertising and measurement policies</a> and <a href="https://policies.google.com/privacy">Google's Privacy Policy</a>. <strong>No SMS content, transaction data, or other financial data collected by the app is ever shared with AdMob or any advertiser</strong> — the ad SDK operates independently and has no access to that data.</p>
+<p>The app displays ads via Google's AdMob SDK (banner, interstitial, rewarded, and native ad formats) to support free use of the app. AdMob may collect an advertising identifier and request metadata (device/app information, approximate location derived from IP, etc.) to serve and measure ads, per <a href="https://policies.google.com/technologies/ads">Google's advertising and measurement policies</a> and <a href="https://policies.google.com/privacy">Google's Privacy Policy</a>. <strong>No SMS content, transaction data, or other financial data collected by the app is ever shared with AdMob or any advertiser</strong> — the ad SDK operates independently and has no access to that data. Where required, a consent message is shown before any ad request is personalized.</p>
 <p>You can go ad-free for 24 hours at a time from Settings by watching a short rewarded ad.</p>
 
 <h3>Google Favicon Service (bank logos)</h3>
 <p>To display a bank's logo, the app requests an icon from Google's public favicon service (<code>google.com/s2/favicons</code>) using that bank's domain name. This request contains only the bank's domain — never any of your personal or financial data.</p>
 
-<h2>4. Data Retention &amp; Deletion</h2>
+<h2 id="choices">4. Your Choices &amp; Control</h2>
+<ul>
+  <li><strong>SMS access</strong> can be revoked at any time via Android Settings → Apps → Habte → Permissions. Without it, transactions won't be detected automatically, but the rest of the app continues to work.</li>
+  <li><strong>Notification access</strong> is off by default and entirely optional. You choose exactly which apps are monitored, and can revoke system-level notification access at any time via Android Settings → Apps → Special app access → Notification access.</li>
+  <li><strong>Biometric/PIN lock</strong> can be turned on or off at any time in Settings → Security.</li>
+  <li><strong>Account numbers</strong> you enter for sharing with customers are optional and can be edited or cleared at any time from an account's detail view.</li>
+  <li><strong>Ads</strong> can be paused for 24 hours at a time from Settings by watching a rewarded ad.</li>
+</ul>
+
+<h2 id="security">5. Security</h2>
+<p>Because everything stays on your device, there is no server of ours to be breached and no account credentials of yours for us to lose. The app itself can be locked behind your device's biometric authentication or a PIN (stored only as a salted PBKDF2 hash, never in plain text). We still recommend keeping your device's own lock screen enabled, since anyone with unlocked access to your phone could otherwise open any app on it, including this one if biometric/PIN lock is turned off.</p>
+
+<h2 id="retention">6. Data Retention &amp; Deletion</h2>
 <ul>
   <li>Your data persists locally on your device for as long as the app is installed.</li>
-  <li>You can clear all locally stored financial data at any time via <strong>Settings → Sign Out</strong>.</li>
+  <li>Habte has no cloud account, so there's no separate "delete my account" request to make — removing your data means removing it from this device.</li>
+  <li>To delete everything at once without uninstalling, use Android's own <strong>Settings → Apps → Habte → Storage &amp; cache → Clear storage</strong>, which immediately wipes the local database.</li>
   <li>Uninstalling the app deletes its local database and all data with it, per standard Android app-storage behavior.</li>
 </ul>
 
-<h2>5. Children's Privacy</h2>
+<h2 id="children">7. Children's Privacy</h2>
 <p>Habte is a personal-finance tool intended for general audiences and is not directed at children under 13. We do not knowingly collect data from children.</p>
 
-<h2>6. Changes to This Policy</h2>
-<p>If this policy changes, the "Last updated" date above will be revised. Continued use of the app after a change constitutes acceptance of the updated policy.</p>
+<h2 id="international">8. International Users</h2>
+<p>Habte is built primarily for users in Ethiopia, but the app itself imposes no location restriction. Regardless of where you are, the same fact applies: no personal or financial data is collected, stored, or processed on any server operated by us, because none exists — every byte of your financial data stays on your own device. If you are in a region with its own data protection law (for example, the EU/UK's GDPR), there is accordingly no personal data of yours held by us to request, export, or delete on our end — your device is the only place it ever lived.</p>
 
-<h2>7. Contact</h2>
+<h2 id="changes">9. Changes to This Policy</h2>
+<p>If this policy changes, the "Last updated" date above will be revised, and material changes will also be reflected in the app's own release notes. Continued use of the app after a change constitutes acceptance of the updated policy.</p>
+
+<h2 id="contact">10. Contact</h2>
 <p>Questions about this policy or your data can be sent to: <a href="mailto:fitsumenunu21@gmail.com">fitsumenunu21@gmail.com</a></p>
 
 </body>

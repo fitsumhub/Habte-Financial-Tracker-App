@@ -582,7 +582,8 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
         InfoDialog(
             title = "Privacy Policy",
             content = "Your privacy is our priority.\n\n" +
-                "- Your SMS messages, transactions, accounts, budgets, and payment reminders are processed and stored locally on your device only — never uploaded anywhere.\n" +
+                "- Your SMS messages, transactions, accounts, budgets, payment reminders, and certificates are processed and stored locally on your device only — never uploaded anywhere.\n" +
+                "- Notification Capture (Settings > Notification Capture) is an optional, off-by-default alternative to SMS detection — it only ever reads notifications from apps you explicitly choose, and stays just as local as everything else.\n" +
                 "- There is no cloud sync and no account/login system.\n" +
                 "- The app shows ads via Google AdMob, which may collect an advertising identifier per Google's own policies — but AdMob never receives your SMS or financial data.\n" +
                 "- Bank logos are fetched from Google's public favicon service using only the bank's domain name.\n" +
