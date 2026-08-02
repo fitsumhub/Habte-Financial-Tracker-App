@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-08-02 · Applies to the Habte (ሀብቴ) Android app
 
-Habte ("the app", "we", "our") is a personal finance tracker built for the Ethiopian market. It automatically detects transactions from bank and mobile wallet SMS (and, optionally, app notifications), so you don't have to enter them by hand. This policy explains exactly what the app can access, what happens to it, and what — if anything — is shared with anyone else.
+Welcome to Habte (ሀብቴ) — a personal finance tracker built for the Ethiopian market to help you understand your income, expenses, and financial activity automatically, without manual entry. Your privacy matters to us, and this policy explains exactly what the app can access, what happens to it, and what — if anything — is shared with anyone else. By using Habte, you agree to the practices described in this Privacy Policy.
 
 > **In short:** Habte runs entirely on your phone. There is no account to create, no cloud sync, and no server of ours that your financial data is ever sent to. The only outside network connections the app makes are to show ads (Google AdMob) and to fetch bank logo images (Google's public favicon service) — neither of those ever receives your SMS content, transactions, balances, or any other financial data.
 
@@ -89,4 +89,12 @@ If this policy changes, the "Last updated" date above will be revised, and mater
 
 ## 10. Contact
 
-Questions about this policy or your data can be sent to: **fitsumenunu21@gmail.com**
+Questions about this policy or your data can be sent to the developer below.
+
+**Developer:** Fitsum Enunu
+**App:** Habte (ሀብቴ)
+**Email:** fitsumenunu21@gmail.com
+
+---
+
+© 2026 Habte (ሀብቴ). All rights reserved.
