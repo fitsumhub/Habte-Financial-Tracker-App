@@ -4,6 +4,8 @@ import android.graphics.Color.parseColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -36,8 +40,10 @@ fun BankCard(
     onPress: (Bank) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var hidden by remember { mutableStateOf(true) }
-    var isPressed by remember { mutableStateOf(false) }
+    val autoHide by com.mobile.data.SettingsRepository.autoHideBalances.collectAsState()
+    var hidden by remember(autoHide) { mutableStateOf(autoHide) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
     val total = remember(bank) { Data.getBankTotal(bank) }
     
     // Pressed state animation
@@ -50,51 +56,25 @@ fun BankCard(
 
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 168.dp)
-            .clip(RoundedCornerShape(22.dp))
+            .heightIn(min = 160.dp)
+            .scale(pressedScale)
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(20.dp),
+                ambientColor = Color(0x1A000000),
+                spotColor = Color(0x1A000000)
+            )
+            .clip(RoundedCornerShape(20.dp))
             .background(
                 Brush.linearGradient(
-                    colors = listOf(
-                        Color(parseColor(bank.colorFrom)),
-                        Color(parseColor(bank.colorTo))
-                    )
+                    listOf(Color(parseColor(bank.colorFrom)), Color(parseColor(bank.colorTo)))
                 )
             )
-            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(22.dp))
-            .clickable { onPress(bank) }
+            .clickable(interactionSource = interactionSource, indication = null) { onPress(bank) }
             .padding(16.dp)
 
 
     ) {
-        // Decorative glow dots with subtle animation
-        val glowOffset by animateFloatAsState(
-            targetValue = if (isPressed) 5f else 0f,
-            animationSpec = tween(150)
-        )
-
-        
-        Box(
-            modifier = Modifier
-                .size(100.dp)
-                .align(Alignment.BottomEnd)
-                .offset(x = 20.dp, y = 30.dp + glowOffset.dp)
-
-
-                .clip(CircleShape)
-                .background(Color(0x12FFFFFF))
-        )
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .align(Alignment.TopEnd)
-                .offset(x = 10.dp, y = (-10).dp - glowOffset.dp)
-
-
-                .clip(CircleShape)
-                .background(Color(0x0AFFFFFF))
-        )
-
-
         Column {
             BankLogo(shortName = bank.logoText, size = 42.dp, fontSize = 11.sp, resId = bank.logoResId, domain = bank.domain)
 
@@ -103,7 +83,7 @@ fun BankCard(
             Text(
                 text = bank.shortName,
                 color = Color.White,
-                fontSize = 17.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.3.sp
             )

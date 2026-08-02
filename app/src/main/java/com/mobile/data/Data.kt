@@ -2,10 +2,23 @@ package com.mobile.data
 
 import java.text.DecimalFormat
 import androidx.compose.runtime.Stable
-import com.mobile.R
 
-// ── Account types (mirrors "savings" | "current" | "mobile" union in data.ts) ─
-enum class AccountType { SAVINGS, CURRENT, MOBILE }
+// ── Account types — the full set of accounts a financial institution may offer.
+enum class AccountType {
+    SAVINGS,
+    CURRENT,
+    SALARY,
+    BUSINESS,
+    MERCHANT,
+    YOUTH,
+    STUDENT,
+    FIXED_DEPOSIT,
+    MOBILE_WALLET,
+    DIGITAL_WALLET,
+    LOAN,
+    INVESTMENT,
+    FOREIGN_CURRENCY
+}
 
 // ── Data models ───────────────────────────────────────────────────────────────
 @Stable
@@ -34,6 +47,17 @@ data class Bank(
     val domain: String? = null
 )
 
+// User-configurable spending limit for a period, optionally scoped to one category
+// (category == null means an overall limit for that period). Replaces the old
+// hardcoded budgetMap in BudgetScreen.
+@Stable
+data class Budget(
+    val id: Long = 0,
+    val period: String, // "Daily" | "Weekly" | "Monthly" | "Yearly"
+    val category: String?,
+    val limit: Double
+)
+
 @Stable
 data class Transaction(
     val id: String,
@@ -45,7 +69,9 @@ data class Transaction(
     val bankShortName: String,
     val category: String = "Other",
     val balance: Double? = null,
-    val accountSuffix: String? = null // Last 4 digits of the account
+    val accountSuffix: String? = null, // Last 4 digits of the account
+    val time: String = "",
+    val reason: String = "" // User-entered note, independent of category — see updateTransactionReason
 )
 
 
@@ -54,24 +80,10 @@ data class Transaction(
 // ── Seed data (mirrors BANKS in data.ts) ─────────────────────────────────────
 object Data {
 
-    val PRESET_BANKS = listOf(
-        Bank("cbe",     "Commercial Bank of Ethiopia", "CBE",  listOf(), "#3730A3", "#1E1B4B", "CBE", R.drawable.logo_cbe, null),
-        Bank("boa",     "Bank of Abyssinia",          "BOA",  listOf(), "#F59E0B", "#B45309", "BOA", null, "bankofabyssinia.com"),
-        Bank("awash",   "Awash Bank",                 "AWA",  listOf(), "#1E40AF", "#1D4ED8", "AWB", null, "awashbank.com"),
-        Bank("dashen",  "Dashen Bank",                "DAS",  listOf(), "#1E3A8A", "#EF4444", "DSB", null, "dashenbanksc.com"),
-        Bank("hibret",  "Hibret Bank",                "HIB",  listOf(), "#059669", "#D97706", "HBT", null, "hibretbank.com.et"),
-        Bank("zemen",   "Zemen Bank",                 "ZEM",  listOf(), "#111827", "#D97706", "ZMN", null, "zemenbank.com"),
-        Bank("nib",     "Nib International Bank",     "NIB",  listOf(), "#1E40AF", "#FACC15", "NIB", null, "nibbanksc.com"),
-        Bank("coop",    "Cooperative Bank of Oromia", "COO",  listOf(), "#047857", "#F59E0B", "CPB", null, "coopbankoromia.com.et"),
-        Bank("abay",    "Abay Bank",                  "ABY",  listOf(), "#1D4ED8", "#059669", "ABY", null, "abaybank.com.et"),
-        Bank("berhan",  "Berhan Bank",                "BER",  listOf(), "#B91C1C", "#F59E0B", "BRH", null, "berhanbanksc.com"),
-        Bank("bunna",   "Bunna Bank",                 "BUN",  listOf(), "#451A03", "#D97706", "BNA", null, "bunnabanksc.com"),
-        Bank("wegagen", "Wegagen Bank",               "WEG",  listOf(), "#1D4ED8", "#F59E0B", "WGN", null, "wegagen.com"),
-        Bank("oromia",  "Oromia Bank",                "ORO",  listOf(), "#059669", "#B91C1C", "ORB", null, "oromiabank.com"),
-        Bank("lion",    "Lion Bank",                  "LIO",  listOf(), "#F59E0B", "#B91C1C", "LIB", null, "lionbanksc.com"),
-        Bank("enat",    "Enat Bank",                  "ENA",  listOf(), "#DB2777", "#1D4ED8", "ENB", null, "enatbanksc.com"),
-        Bank("tele",    "Telebirr",                   "TEL",  listOf(), "#0E7490", "#164E63", "TEL", R.drawable.logo_tele, null)
-    )
+    // Derived from InstitutionCatalog so the "Add Bank" list and SMS detection
+    // (SmsParser) both stay in sync with a single source of truth — adding a
+    // new institution only means adding an entry to InstitutionCatalog.ALL.
+    val PRESET_BANKS: List<Bank> = InstitutionCatalog.ALL.map { it.toBank() }
 
     val BANKS: List<Bank> = emptyList()
 
@@ -85,9 +97,14 @@ object Data {
     fun getTotalBalance(banks: List<Bank>): Double =
         banks.sumOf { bank -> bank.accounts.sumOf { it.balance } }
 
+    // DecimalFormat isn't thread-safe, and this is called from both Compose UI
+    // (every transaction row) and background notifiers — a ThreadLocal caches one
+    // instance per thread instead of re-parsing the pattern string on every call.
+    private val balanceFormat = ThreadLocal.withInitial { DecimalFormat("#,##0.00") }
+
     fun formatBalance(amount: Double, short: Boolean = false): String {
         if (short && amount >= 1000) return String.format("%.1fk", amount / 1000)
-        return DecimalFormat("#,##0.00").format(amount)
+        return balanceFormat.get()!!.format(amount)
     }
 
     fun getBankTotal(bank: Bank): Double =

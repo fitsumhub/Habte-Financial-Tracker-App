@@ -25,6 +25,14 @@ import androidx.compose.ui.unit.sp
 import com.mobile.data.Data
 import com.mobile.data.Transaction
 import com.mobile.data.FinanceRepository
+import com.mobile.data.SettingsRepository
+import com.mobile.data.formatDisplayDate
+
+// BUG FIX: Was hardcoded to the old dark palette regardless of theme; now routes
+// through MaterialTheme.colorScheme tokens (same convention as AnalyticsScreen/BudgetScreen)
+// so it matches the light corporate theme instead of rendering as a stray dark sheet.
+private val IncomeColor = Color(0xFF059669)
+private val ExpenseColor = Color(0xFFDC2626)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,14 +42,17 @@ fun TransactionDetailSheet(
 ) {
     if (transaction == null) return
 
+    val dateFormat by SettingsRepository.dateFormat.collectAsState()
     val baseCategories = listOf("Food", "Bills", "Transfer", "Income", "Lend", "Cosmetics", "Transport", "Shopping", "Entertainment", "Other")
 
-    var customCategory by remember { mutableStateOf("") }
+    // Keyed on transaction.id so switching to a different transaction's sheet
+    // starts from that transaction's own saved reason, not a stale leftover value.
+    var reasonInput by remember(transaction.id) { mutableStateOf(transaction.reason) }
 
     ModalBottomSheet(
         onDismissRequest = onClose,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color(0xFF0A0F20),
+        containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = null
     ) {
         Column(
@@ -56,7 +67,7 @@ fun TransactionDetailSheet(
                     .width(36.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFF1A2240))
+                    .background(MaterialTheme.colorScheme.outline)
                     .align(Alignment.CenterHorizontally)
             )
 
@@ -80,45 +91,55 @@ fun TransactionDetailSheet(
                         .size(56.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(
-                            if (transaction.type == "credit") Color(0xFF064E3B).copy(alpha = 0.3f) 
-                            else Color(0xFF7F1D1D).copy(alpha = 0.3f)
+                            if (transaction.type == "credit") IncomeColor.copy(alpha = 0.08f)
+                            else ExpenseColor.copy(alpha = 0.08f)
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = categoryIcon,
                         contentDescription = null,
-                        tint = if (transaction.type == "credit") Color(0xFF10B981) else Color(0xFFF87171),
+                        tint = if (transaction.type == "credit") IncomeColor else ExpenseColor,
                         modifier = Modifier.size(28.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        transaction.title, 
-                        color = Color.White, 
-                        fontSize = 18.sp, 
+                        transaction.title,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "${transaction.bankShortName} • ${transaction.date}", 
-                        color = Color(0xFF64748B), 
+                        "${transaction.bankShortName} • ${formatDisplayDate(transaction.date, dateFormat)}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
                     )
+                    if (transaction.reason.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            transaction.reason,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 2
+                        )
+                    }
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = "${if (transaction.type == "credit") "+" else ""}${Data.formatBalance(transaction.amount)}",
-                        color = if (transaction.type == "credit") Color(0xFF10B981) else Color.White,
+                        color = if (transaction.type == "credit") IncomeColor else MaterialTheme.colorScheme.onSurface,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
                     Text(
                         text = "ETB",
-                        color = Color(0xFF475569),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -128,8 +149,8 @@ fun TransactionDetailSheet(
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                "Update Reason / Category",
-                color = Color.White,
+                "Category",
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 12.dp)
@@ -149,7 +170,7 @@ fun TransactionDetailSheet(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isSelected) Color(0xFF6366F1) else Color(0xFF1A2240))
+                                    .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
                                     .clickable {
                                         FinanceRepository.updateTransactionCategory(transaction.id, category)
                                     }
@@ -158,7 +179,7 @@ fun TransactionDetailSheet(
                             ) {
                                 Text(
                                     category,
-                                    color = if (isSelected) Color.White else Color(0xFF7B84A8),
+                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1
@@ -174,26 +195,40 @@ fun TransactionDetailSheet(
                     }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(20.dp))
 
-            // Custom Category Input
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Text(
+                "Reason",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            Text(
+                "An optional note about this transaction — kept separate from its category.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            // Reason Input — independent of category, so saving one never overwrites the other.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedTextField(
-                    value = customCategory,
-                    onValueChange = { customCategory = it },
-                    placeholder = { Text("Or enter custom reason", color = Color(0xFF3A4268)) },
+                    value = reasonInput,
+                    onValueChange = { reasonInput = it },
+                    placeholder = { Text("e.g. Paid rent for July", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.weight(1f),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFF0E1527),
-                        unfocusedContainerColor = Color(0xFF0E1527),
-                        focusedBorderColor = Color(0xFF6366F1),
-                        unfocusedBorderColor = Color(0xFF1A2240),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     ),
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true
@@ -201,26 +236,24 @@ fun TransactionDetailSheet(
                 Spacer(modifier = Modifier.width(12.dp))
                 Button(
                     onClick = {
-                        if (customCategory.isNotBlank()) {
-                            FinanceRepository.updateTransactionCategory(transaction.id, customCategory)
-                            customCategory = ""
-                        }
+                        FinanceRepository.updateTransactionReason(transaction.id, reasonInput.trim())
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    enabled = reasonInput.trim() != transaction.reason,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.height(56.dp)
                 ) {
                     Text("Save", fontWeight = FontWeight.Bold)
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(32.dp))
 
             TextButton(
                 onClick = onClose,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Close", color = Color(0xFF7B84A8), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

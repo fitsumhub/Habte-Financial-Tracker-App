@@ -1,9 +1,11 @@
 package com.mobile.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,27 +25,28 @@ fun NotFoundScreen(onGoHome: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Text(
             text = "Oops!",
-            color = Color(0xFFF0F2FF),
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 12.dp)
         )
         Text(
             text = "This screen doesn't exist.",
-            color = Color(0xFF7B84A8),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 16.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(bottom = 32.dp)
         )
         Button(
             onClick = onGoHome,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.padding(vertical = 15.dp)
         ) {

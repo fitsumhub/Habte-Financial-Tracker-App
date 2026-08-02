@@ -27,10 +27,22 @@ import com.mobile.data.Transaction
 import java.text.SimpleDateFormat
 import java.util.*
 
+// BUG FIX: Budget screen still used the old dark palette as raw hex literals,
+// which read as broken/inconsistent against the app's light corporate theme.
+// Route through MaterialTheme.colorScheme tokens (same pattern as AnalyticsScreen)
+// so it re-skins correctly and stays visually consistent with the rest of the app.
+private val ExpenseColor = Color(0xFFDC2626)
+
+// Fallback limits shown until the user sets their own — once FinanceRepository.budgets
+// has an entry for a period, that persisted value takes over.
+private val DEFAULT_BUDGETS = mapOf("Daily" to 500.0, "Weekly" to 3500.0, "Monthly" to 15000.0, "Yearly" to 180000.0)
+
 @Composable
 fun BudgetScreen() {
     val transactions by FinanceRepository.transactions.collectAsState()
+    val budgets by FinanceRepository.budgets.collectAsState()
     var selectedPeriod by remember { mutableStateOf("Monthly") }
+    var showEditBudget by remember { mutableStateOf(false) }
     val periods = listOf("Daily", "Weekly", "Monthly", "Yearly")
 
     val sdf = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
@@ -42,23 +54,12 @@ fun BudgetScreen() {
             try {
                 val date = sdf.parse(tx.date) ?: return@filter false
                 val cal = Calendar.getInstance().apply { time = date }
-                
+
                 when (selectedPeriod) {
-                    "Daily" -> {
-                        cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
-                        cal.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)
-                    }
-                    "Weekly" -> {
-                        val diff = now.timeInMillis - cal.timeInMillis
-                        diff <= 7 * 24 * 60 * 60 * 1000L
-                    }
-                    "Monthly" -> {
-                        cal.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
-                        cal.get(Calendar.MONTH) == now.get(Calendar.MONTH)
-                    }
-                    "Yearly" -> {
-                        cal.get(Calendar.YEAR) == now.get(Calendar.YEAR)
-                    }
+                    "Daily" -> com.mobile.data.isSameCalendarDay(cal, now)
+                    "Weekly" -> com.mobile.data.isWithinRollingWindow(now, cal, 7 * 24 * 60 * 60 * 1000L)
+                    "Monthly" -> com.mobile.data.isSameCalendarMonth(cal, now)
+                    "Yearly" -> com.mobile.data.isSameCalendarYear(cal, now)
                     else -> true
                 }
             } catch (e: Exception) {
@@ -68,21 +69,23 @@ fun BudgetScreen() {
     }
 
     val totalExpense = filteredTransactions.sumOf { it.amount }
-    
-    // Mock budget for progress bars
-    val budgetMap = mapOf("Daily" to 500.0, "Weekly" to 3500.0, "Monthly" to 15000.0, "Yearly" to 180000.0)
-    val currentBudget = budgetMap[selectedPeriod] ?: 10000.0
-    val budgetProgress = (totalExpense / currentBudget).coerceIn(0.0, 1.0).toFloat()
+
+    val currentBudget = remember(budgets, selectedPeriod) {
+        budgets.find { it.period == selectedPeriod && it.category == null }?.limit
+            ?: DEFAULT_BUDGETS[selectedPeriod]
+            ?: 10000.0
+    }
+    val budgetProgress = com.mobile.data.budgetProgressFraction(totalExpense, currentBudget)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF070912))
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
     ) {
         // Header
         Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).padding(bottom = 12.dp)) {
-            Text("Budget & Expenses", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("Budget & Expenses", color = MaterialTheme.colorScheme.onSurface, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
 
         // Period Selector
@@ -91,7 +94,8 @@ fun BudgetScreen() {
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 8.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF0E1527))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
                 .padding(4.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -101,14 +105,14 @@ fun BudgetScreen() {
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (isSelected) Color(0xFF6366F1) else Color.Transparent)
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
                         .clickable { selectedPeriod = period }
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = period,
-                        color = if (isSelected) Color.White else Color(0xFF64748B),
+                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     )
@@ -123,7 +127,7 @@ fun BudgetScreen() {
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 100.dp)
         ) {
-            // Main Summary Card
+            // Main Summary Card — saturated brand-color hero, so text stays white by design
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -131,16 +135,15 @@ fun BudgetScreen() {
                     .clip(RoundedCornerShape(28.dp))
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color(0xFF1E1B4B), Color(0xFF070912))
+                            listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
                         )
                     )
-                    .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(28.dp))
                     .padding(24.dp)
             ) {
                 Column {
                     Text(
                         text = "TOTAL SPENT ($selectedPeriod)",
-                        color = Color(0xFF818CF8),
+                        color = Color(0xE6FFFFFF),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.5.sp
@@ -155,28 +158,40 @@ fun BudgetScreen() {
                         )
                         Text(
                             text = " ETB",
-                            color = Color(0xFF64748B),
+                            color = Color(0xB3FFFFFF),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.height(20.dp))
-                    
+
                     // Budget Progress
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Budget", color = Color(0xFF64748B), fontSize = 12.sp)
-                        Text(
-                            "${(budgetProgress * 100).toInt()}% of ${Data.formatBalance(currentBudget)}",
-                            color = if (budgetProgress > 0.9) Color(0xFFEF4444) else Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("Budget", color = Color(0xB3FFFFFF), fontSize = 12.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { showEditBudget = true }
+                        ) {
+                            Text(
+                                "${(budgetProgress * 100).toInt()}% of ${Data.formatBalance(currentBudget)}",
+                                color = if (budgetProgress > 0.9) Color(0xFFFCA5A5) else Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Edit budget limit",
+                                tint = Color(0xB3FFFFFF),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Box(
@@ -184,18 +199,14 @@ fun BudgetScreen() {
                             .fillMaxWidth()
                             .height(8.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF0E1527))
+                            .background(Color(0x33FFFFFF))
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(budgetProgress)
                                 .fillMaxHeight()
                                 .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))
-                                    )
-                                )
+                                .background(Color.White)
                         )
                     }
                 }
@@ -204,7 +215,7 @@ fun BudgetScreen() {
             // Category Breakdown
             Text(
                 "Spending by Category",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp, top = 8.dp)
@@ -222,7 +233,7 @@ fun BudgetScreen() {
                         .height(100.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No expenses found for this period.", color = Color(0xFF3A4268), fontSize = 14.sp)
+                    Text("No expenses found for this period.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                 }
             } else {
                 categoryExpenses.forEach { (category, amount) ->
@@ -237,7 +248,7 @@ fun BudgetScreen() {
             // Recent Expenses List
             Text(
                 "Recent Expenses",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -249,6 +260,58 @@ fun BudgetScreen() {
             }
         }
     }
+
+    if (showEditBudget) {
+        EditBudgetDialog(
+            period = selectedPeriod,
+            currentLimit = currentBudget,
+            onDismiss = { showEditBudget = false },
+            onSave = { newLimit ->
+                FinanceRepository.setBudget(selectedPeriod, null, newLimit)
+                showEditBudget = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun EditBudgetDialog(
+    period: String,
+    currentLimit: Double,
+    onDismiss: () -> Unit,
+    onSave: (Double) -> Unit
+) {
+    var input by remember { mutableStateOf(if (currentLimit > 0) currentLimit.toInt().toString() else "") }
+    val parsed = input.toDoubleOrNull()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Set $period Budget", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+        text = {
+            OutlinedTextField(
+                value = input,
+                onValueChange = { input = it.filter { c -> c.isDigit() || c == '.' } },
+                label = { Text("Limit (ETB)") },
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(24.dp),
+        confirmButton = {
+            TextButton(
+                onClick = { parsed?.let { if (it > 0) onSave(it) } },
+                enabled = parsed != null && parsed > 0
+            ) {
+                Text("Save", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    )
 }
 
 @Composable
@@ -257,7 +320,8 @@ fun CategoryItem(name: String, amount: Double, progress: Float) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF0E1527))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(18.dp))
             .padding(16.dp)
     ) {
         Column {
@@ -271,7 +335,7 @@ fun CategoryItem(name: String, amount: Double, progress: Float) {
                         modifier = Modifier
                             .size(32.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF1A2240)),
+                            .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         val icon = when(name) {
@@ -282,12 +346,12 @@ fun CategoryItem(name: String, amount: Double, progress: Float) {
                             "Cash" -> Icons.Default.Payments
                             else -> Icons.Default.Category
                         }
-                        Icon(icon, contentDescription = null, tint = Color(0xFF818CF8), modifier = Modifier.size(16.dp))
+                        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(name, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Text(Data.formatBalance(amount), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(Data.formatBalance(amount), color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(12.dp))
             Box(
@@ -295,14 +359,14 @@ fun CategoryItem(name: String, amount: Double, progress: Float) {
                     .fillMaxWidth()
                     .height(4.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF1A2240))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(progress)
                         .fillMaxHeight()
                         .clip(CircleShape)
-                        .background(Color(0xFF818CF8))
+                        .background(MaterialTheme.colorScheme.primary)
                 )
             }
         }
@@ -311,12 +375,13 @@ fun CategoryItem(name: String, amount: Double, progress: Float) {
 
 @Composable
 fun ExpenseItem(tx: Transaction) {
+    val dateFormat by com.mobile.data.SettingsRepository.dateFormat.collectAsState()
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF0E1527).copy(alpha = 0.5f))
-            .border(0.5.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -324,19 +389,19 @@ fun ExpenseItem(tx: Transaction) {
             modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF7F1D1D).copy(alpha = 0.1f)),
+                .background(ExpenseColor.copy(alpha = 0.08f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.ArrowOutward, contentDescription = null, tint = Color(0xFFF87171), modifier = Modifier.size(18.dp))
+            Icon(Icons.Default.ArrowOutward, contentDescription = null, tint = ExpenseColor, modifier = Modifier.size(18.dp))
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(tx.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-            Text(tx.date, color = Color(0xFF64748B), fontSize = 11.sp)
+            Text(tx.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(com.mobile.data.formatDisplayDate(tx.date, dateFormat), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
         }
         Text(
             "-${Data.formatBalance(tx.amount)}",
-            color = Color.White,
+            color = ExpenseColor,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold
         )

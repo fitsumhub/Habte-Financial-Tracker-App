@@ -1,6 +1,5 @@
 package com.mobile.ui.screens
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,26 +21,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mobile.data.SettingsRepository
 import androidx.compose.runtime.*
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Send
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlertsScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val biometric by SettingsRepository.biometricEnabled.collectAsState()
-    val autoHide by SettingsRepository.autoHideBalances.collectAsState()
-    val privacyMode by SettingsRepository.privacyMode.collectAsState()
     val notifications by SettingsRepository.notificationsEnabled.collectAsState()
-    val emailUpdates by SettingsRepository.emailUpdates.collectAsState()
     val smsAlerts by SettingsRepository.smsAlerts.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF070912))
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
     ) {
         // Header
@@ -55,11 +47,11 @@ fun AlertsScreen(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Text(
                     text = "Alerts",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -82,15 +74,6 @@ fun AlertsScreen(onBack: () -> Unit) {
                 checked = notifications,
                 onCheckedChange = { 
                     SettingsRepository.setNotifications(it) 
-                }
-            )
-            SettingToggleRow(
-                icon = Icons.Default.Email,
-                label = "Email Updates",
-                description = "Monthly statements and news",
-                checked = emailUpdates,
-                onCheckedChange = { 
-                    SettingsRepository.setEmailUpdates(it)
                 }
             )
             SettingToggleRow(

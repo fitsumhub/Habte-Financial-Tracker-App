@@ -374,4 +374,215 @@ class SmsParserTest {
         assertNotNull(tx)
         assertEquals(500.0, tx!!.amount, 0.01)
     }
+
+    @Test
+    fun `parse Br amount without trailing period`() {
+        val tx = SmsParser.parseMessage(
+            "CBE",
+            "500 Br has been debited from your account",
+            1700000000000L
+        )
+        assertNotNull(tx)
+        assertEquals(500.0, tx!!.amount, 0.01)
+    }
+
+    // ── Failed / non-completed transactions ────────────────────────────────
+
+    @Test
+    fun `failed transaction is not recorded even with a debited keyword`() {
+        val tx = SmsParser.parseMessage(
+            "CBE",
+            "Your account has been debited with ETB 500.00 for Merchant X. Transaction failed, amount will be reversed within 24 hours.",
+            1700000000000L
+        )
+        assertNull(tx)
+    }
+
+    @Test
+    fun `declined transaction is not recorded`() {
+        val tx = SmsParser.parseMessage(
+            "BOA",
+            "Your payment of ETB 200.00 was declined due to insufficient balance.",
+            1700000000000L
+        )
+        assertNull(tx)
+    }
+
+    @Test
+    fun `insufficient balance message is not recorded`() {
+        val tx = SmsParser.parseMessage(
+            "CBE",
+            "Unable to complete: insufficient funds for a debit of ETB 1,000.00.",
+            1700000000000L
+        )
+        assertNull(tx)
+    }
+
+    @Test
+    fun `a real reversal refund credit is still recorded`() {
+        // Unlike a failed *attempt*, a reversal that actually credits money back is a
+        // genuine transaction and must not be swallowed by the failure guard.
+        val tx = SmsParser.parseMessage(
+            "CBE",
+            "Your transaction has been reversed. ETB 500.00 has been credited back to your account. Balance: ETB 5,500.00",
+            1700000000000L
+        )
+        assertNotNull(tx)
+        assertEquals("credit", tx!!.type)
+        assertEquals(500.0, tx.amount, 0.01)
+    }
+
+    // ── Pending / future-dated transactions ─────────────────────────────────
+
+    @Test
+    fun `future-dated standing order is not recorded`() {
+        val tx = SmsParser.parseMessage(
+            "CBE",
+            "Your subscription payment of ETB 100.00 will be debited on 2026-08-01.",
+            1700000000000L
+        )
+        assertNull(tx)
+    }
+
+    @Test
+    fun `message stating the transaction is scheduled to be debited is not recorded`() {
+        val tx = SmsParser.parseMessage(
+            "CBE",
+            "Your account is scheduled to be debited with ETB 250.00 tomorrow.",
+            1700000000000L
+        )
+        assertNull(tx)
+    }
+
+    @Test
+    fun `a completed standing-order payment is still recorded despite the word scheduled`() {
+        // "scheduled payment" here names the recurring plan, not a pending state — the
+        // message says the money has already moved, so it must not be dropped by the
+        // pending-transaction guard (that guard only rejects unambiguous future tense
+        // like "will be debited" / "is scheduled to be debited").
+        val tx = SmsParser.parseMessage(
+            "CBE",
+            "Your scheduled payment of ETB 250.00 has been debited from your account. Balance: ETB 750.00",
+            1700000000000L
+        )
+        assertNotNull(tx)
+        assertEquals("debit", tx!!.type)
+        assertEquals(250.0, tx.amount, 0.01)
+    }
+
+    // ── "sent" as a debit keyword (common mobile-money wallet phrasing) ─────
+
+    @Test
+    fun `wallet sent message is recorded as debit`() {
+        val tx = SmsParser.parseMessage(
+            "telebirr",
+            "You have sent ETB 150.00 to 0912345678. Balance: ETB 850.00",
+            1700000000000L
+        )
+        assertNotNull(tx)
+        assertEquals("debit", tx!!.type)
+        assertEquals(150.0, tx.amount, 0.01)
+    }
+
+    // ── Loan categorization ──────────────────────────────────────────────────
+
+    @Test
+    fun `loan repayment is categorized as Loan`() {
+        val tx = SmsParser.parseMessage(
+            "CBE",
+            "Your loan repayment of ETB 3,000.00 has been debited from your account. Balance: ETB 7,000.00",
+            1700000000000L
+        )
+        assertNotNull(tx)
+        assertEquals("Loan Payment", tx!!.title)
+        assertEquals("Loan", tx.category)
+    }
+
+    // ── Stable, content-derived transaction IDs (dedup across live-receive vs. resync) ──
+
+    @Test
+    fun `identical SMS content produces the same ID regardless of timestamp`() {
+        val body = "Your account has been debited with ETB 500.00. Balance: ETB 4,500.00"
+        // Simulates the live SmsReceiver path (delivery timestamp) vs. the historical
+        // resync path (the inbox's stored `date` column), which can legitimately differ
+        // by a few milliseconds for the exact same real message.
+        val tx1 = SmsParser.parseMessage("CBE", body, 1700000000000L)
+        val tx2 = SmsParser.parseMessage("CBE", body, 1700000000037L)
+        assertNotNull(tx1)
+        assertNotNull(tx2)
+        assertEquals(tx1!!.id, tx2!!.id)
+    }
+
+    @Test
+    fun `different SMS content from the same bank produces different IDs`() {
+        val tx1 = SmsParser.parseMessage(
+            "CBE", "Your account has been debited with ETB 500.00. Balance: ETB 4,500.00", 1700000000000L
+        )
+        val tx2 = SmsParser.parseMessage(
+            "CBE", "Your account has been debited with ETB 200.00. Balance: ETB 4,300.00", 1700000000000L
+        )
+        assertNotNull(tx1)
+        assertNotNull(tx2)
+        assertNotEquals(tx1!!.id, tx2!!.id)
+    }
+
+    @Test
+    fun `bank-stated reference number is used as the dedup key`() {
+        val tx = SmsParser.parseMessage(
+            "CBE",
+            "Your account has been debited with ETB 500.00. Ref: FT23198ABCDE. Balance: ETB 4,500.00",
+            1700000000000L
+        )
+        assertNotNull(tx)
+        assertTrue(tx!!.id.contains("FT23198ABCDE"))
+    }
+
+    // ── parseBody (NotificationCaptureListenerService's entry point) ────────────────────
+
+    @Test
+    fun `parseBody produces the same result as parseMessage for the same institution and body`() {
+        val institution = InstitutionCatalog.findBySmsSender("CBE")!!
+        val body = "Your account has been credited with ETB 750.00. Your balance is ETB 5,750.00"
+
+        val viaSms = SmsParser.parseMessage("CBE", body, 1700000000000L)
+        val viaNotification = SmsParser.parseBody(institution, body, 1700000000000L, idPrefix = "notif", sourceKey = "com.cbe.app")
+
+        assertNotNull(viaSms)
+        assertNotNull(viaNotification)
+        assertEquals(viaSms!!.amount, viaNotification!!.amount, 0.01)
+        assertEquals(viaSms.type, viaNotification.type)
+        assertEquals(viaSms.bankShortName, viaNotification.bankShortName)
+    }
+
+    @Test
+    fun `parseBody ids are namespaced by idPrefix so an SMS and a notification for the same event never collide`() {
+        val institution = InstitutionCatalog.findBySmsSender("CBE")!!
+        val body = "Your account has been debited with ETB 300.00. Balance: ETB 4,700.00"
+
+        val smsTx = SmsParser.parseBody(institution, body, 1700000000000L, idPrefix = "sms", sourceKey = "CBE")
+        val notifTx = SmsParser.parseBody(institution, body, 1700000000000L, idPrefix = "notif", sourceKey = "com.cbe.app")
+
+        assertNotNull(smsTx)
+        assertNotNull(notifTx)
+        assertTrue(smsTx!!.id.startsWith("sms-CBE-"))
+        assertTrue(notifTx!!.id.startsWith("notif-CBE-"))
+        assertNotEquals(smsTx.id, notifTx.id)
+    }
+
+    @Test
+    fun `money in and money out phrasing is recognized as credit and debit`() {
+        val institution = InstitutionCatalog.findBySmsSender("CBE")!!
+
+        val moneyIn = SmsParser.parseBody(
+            institution, "Money In: ETB 1,000.00 to your account.", 1700000000000L, idPrefix = "notif", sourceKey = "com.cbe.app"
+        )
+        val moneyOut = SmsParser.parseBody(
+            institution, "Money Out: ETB 250.00 from your account.", 1700000000000L, idPrefix = "notif", sourceKey = "com.cbe.app"
+        )
+
+        assertNotNull(moneyIn)
+        assertEquals("credit", moneyIn!!.type)
+        assertNotNull(moneyOut)
+        assertEquals("debit", moneyOut!!.type)
+    }
 }

@@ -1,6 +1,6 @@
 # Habte Financial Tracker — Full Documentation
 
-**Habte (ሀብቴ)** is a premium, privacy-first personal finance tracker built for the Ethiopian market. It automatically syncs transactions from bank and Telebirr SMS notifications, provides analytics and budgeting tools, and includes an AI financial assistant powered by Google Gemini.
+**Habte (ሀብቴ)** is a premium, privacy-first personal finance tracker built for the Ethiopian market. It automatically syncs transactions from bank and Telebirr SMS notifications, and provides analytics, budgeting, and bill/payment reminder tools.
 
 | Property | Value |
 |---|---|
@@ -44,9 +44,9 @@ Habte is designed to help Ethiopian users track their finances without manual da
 - **Parses transaction details** (amount, balance, type, category) locally on-device
 - **Displays accounts and balances** in a modern Material 3 interface
 - **Provides analytics, budgeting, and export tools**
-- **Offers Habte AI Pro** — a Gemini-powered financial coach that uses your live transaction data
+- **Sets recurring Payment Reminders** for rent, loans, subscriptions and other bills, with local due-date notifications
 
-All financial data processing happens **locally**. There is no cloud sync of transaction data. The only network call is to the Gemini API when using the AI chat feature (and only the summarized financial snapshot is sent, not raw SMS).
+All financial data processing happens **locally** and is persisted on-device via Room — there is no cloud sync of transaction data. The only network calls the app makes are AdMob ad requests; no SMS content or financial data is ever transmitted.
 
 ---
 
@@ -92,7 +92,7 @@ All financial data processing happens **locally**. There is no cloud sync of tra
 | **CSV / JSON Export** | Export transaction history via Android Storage Access Framework |
 | **Currency Converter** | Built-in ETB converter tool |
 | **Loan & Tax Calculators** | EMI and income tax estimators |
-| **Habte AI Pro** | Streaming Gemini chat with 12 preset financial prompts |
+| **Payment Reminders** | Alarm-app-style recurring reminders (one-time/weekly/monthly/yearly) for any bill |
 
 ---
 
@@ -111,7 +111,7 @@ Habte follows a **Repository Pattern** with **reactive state** via Kotlin `State
                            │
                     ┌──────▼──────┐
                     │  RootLayout  │
-                    │ ErrorBoundary│
+                    │ CrashReporter│
                     └──────┬──────┘
                            │
                     ┌──────▼──────┐
@@ -127,22 +127,21 @@ Habte follows a **Repository Pattern** with **reactive state** via Kotlin `State
          │
     ┌────▼────────────────────────────────────────┐
     │              Data Layer                      │
-    │  FinanceRepository  │  SettingsRepository   │
-    │  SmsParser          │  GeminiService        │
-    │  SmsReceiver        │  Data (models/seeds)  │
-    └─────────────────────────────────────────────┘
-         │
-    ┌────▼────┐         ┌──────────┐
-    │ SMS Inbox│         │ Gemini API│
-    │ (local)  │         │ (AI only) │
-    └──────────┘         └──────────┘
+    │  FinanceRepository  │  SettingsRepository    │
+    │  PaymentReminderRepo │  SmsParser            │
+    │  SmsReceiver         │  Data (models/seeds)  │
+    └───────────────────┬───────────────────────────┘
+                         │
+                  ┌──────▼──────┐         ┌──────────┐
+                  │ Room DB      │         │ SMS Inbox│
+                  │ (habte.db)   │         │ (local)  │
+                  └──────────────┘         └──────────┘
 ```
 
 ### Design Decisions
 
-- **In-memory storage**: Banks and transactions live in `MutableStateFlow` — data is lost on app kill unless re-synced from SMS
-- **No Room/SQLite**: Simplifies architecture; SMS inbox is the source of truth
-- **Singleton repositories**: `FinanceRepository`, `SettingsRepository`, `GeminiService` are Kotlin `object`s
+- **Room-backed persistence**: `FinanceRepository` and `PaymentReminderRepository` mirror their Room tables (`AppDatabase`) into `StateFlow` — transactions, accounts, budgets, and payment reminders all survive app kill and device reboot. Lightweight user preferences (theme, PIN hash, toggles) remain in `SharedPreferences` via `SettingsRepository`.
+- **Singleton repositories**: `FinanceRepository`, `SettingsRepository`, `PaymentReminderRepository` are Kotlin `object`s
 - **No Navigation Component graph**: Route state is a simple `String` in `AppNavigation`
 
 ---
@@ -165,9 +164,9 @@ Habte-Financial-Tracker-App-main/
 │       │   │   │   ├── SettingsRepository.kt # User preferences
 │       │   │   │   ├── SmsParser.kt          # SMS → Transaction parser
 │       │   │   │   ├── SmsReceiver.kt        # BroadcastReceiver for SMS
-│       │   │   │   └── GeminiService.kt      # AI chat integration
+│       │   │   │   └── db/                   # Room entities, DAOs, AppDatabase
 │       │   │   └── ui/
-│       │   │       ├── RootLayout.kt           # Error boundary wrapper
+│       │   │       ├── RootLayout.kt           # Root composable
 │       │   │       ├── navigation/
 │       │   │       │   └── AppNavigation.kt  # Bottom nav & routing
 │       │   │       ├── screens/              # All app screens (15)
@@ -181,7 +180,8 @@ Habte-Financial-Tracker-App-main/
 │       └── androidTest/                        # Instrumented / E2E tests
 ├── build.gradle                     # Root Gradle config
 ├── settings.gradle
-├── local.properties.example         # SDK path & Gemini API key template
+├── local.properties.example         # SDK path template
+├── keystore.properties.example      # Release signing config template
 ├── README.md
 └── DOCUMENTATION.md                 # This file
 ```
@@ -201,7 +201,8 @@ Habte-Financial-Tracker-App-main/
 | State | StateFlow / MutableStateFlow | — |
 | Image Loading | Coil Compose | 2.5.0 |
 | Security | Biometric KTX | 1.2.0-alpha05 |
-| AI | Google Generative AI SDK | 0.9.0 |
+| Persistence | Room (runtime, ktx, KSP compiler) | 2.6.1 |
+| Ads | Google Mobile Ads (AdMob) | 23.6.0 |
 | Testing | JUnit 4, Espresso, Compose UI Test | — |
 
 ### Key Dependencies
@@ -216,8 +217,13 @@ implementation 'androidx.navigation:navigation-compose:2.7.7'
 // Biometric
 implementation 'androidx.biometric:biometric-ktx:1.2.0-alpha05'
 
-// Gemini AI
-implementation 'com.google.ai.client.generativeai:generativeai:0.9.0'
+// Room — local persistence
+implementation 'androidx.room:room-runtime:2.6.1'
+implementation 'androidx.room:room-ktx:2.6.1'
+ksp 'androidx.room:room-compiler:2.6.1'
+
+// AdMob
+implementation 'com.google.android.gms:play-services-ads:23.6.0'
 ```
 
 ---
@@ -230,7 +236,6 @@ implementation 'com.google.ai.client.generativeai:generativeai:0.9.0'
 - **JDK 17**
 - **Android SDK 34**
 - Physical Android device or emulator (API 26+)
-- **Gemini API key** (optional, for AI chat)
 
 ### Steps
 
@@ -247,8 +252,9 @@ implementation 'com.google.ai.client.generativeai:generativeai:0.9.0'
 
    ```properties
    sdk.dir=C\:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\Sdk
-   GEMINI_API_KEY=your_gemini_api_key_here
    ```
+
+   For a **release** build, also copy `keystore.properties.example` to `keystore.properties` and point it at a real keystore (see [§14 Build & Release](#14-build--release)).
 
 3. **Open in Android Studio**
 
@@ -270,20 +276,20 @@ implementation 'com.google.ai.client.generativeai:generativeai:0.9.0'
 
 ## 7. Configuration
 
-### Gemini API Key
+### Release Signing
 
-The AI chat feature requires a Google Gemini API key:
+Release builds are signed via a `keystore.properties` file at the repo root (never committed — see `.gitignore`):
 
-1. Get a key from [Google AI Studio](https://aistudio.google.com/)
-2. Add it to `local.properties`:
+```properties
+storeFile=keystore/habte-release.jks
+storePassword=...
+keyAlias=habte
+keyPassword=...
+```
 
-   ```properties
-   GEMINI_API_KEY=AIza...
-   ```
+`app/build.gradle` reads this at configuration time and wires it into `signingConfigs.release`. Without this file present, `assembleRelease` still succeeds but produces an unsigned APK.
 
-3. Rebuild the app. The key is injected via `BuildConfig.GEMINI_API_KEY`.
-
-> **Security note**: Never commit `local.properties` to version control. It is listed in `.gitignore`.
+> **Security note**: Never commit `local.properties` or `keystore.properties` to version control. Both are listed in `.gitignore`. Losing the release keystore means you can never publish an update to an existing Play Store listing under the same app — back it up somewhere durable (a password manager or encrypted storage), not just this machine.
 
 ### Android Permissions
 
@@ -291,11 +297,12 @@ Defined in `AndroidManifest.xml`:
 
 | Permission | Purpose |
 |---|---|
-| `INTERNET` | Gemini AI API calls |
+| `INTERNET` | AdMob ad requests |
 | `USE_BIOMETRIC` | Fingerprint / Face authentication |
 | `READ_SMS` | Historical SMS sync from inbox |
 | `RECEIVE_SMS` | Real-time SMS capture via BroadcastReceiver |
-| `RECEIVE_BOOT_COMPLETED` | Reserved for future boot-time sync |
+| `POST_NOTIFICATIONS` | Transaction, summary, and payment-reminder notifications |
+| `RECEIVE_BOOT_COMPLETED` | Re-arms summary and payment-reminder alarms after reboot (`BootReceiver`) |
 
 ### Settings (SharedPreferences)
 
@@ -528,41 +535,20 @@ Manages user preferences via `SharedPreferences` with reactive `StateFlow` expos
 
 **Theme modes**: `Light`, `Dark`, `System Default` — applied via `AppCompatDelegate.setDefaultNightMode()`.
 
-### 9.5 GeminiService
+### 9.5 PaymentReminderRepository / Scheduler / Receiver / Notifier
 
-**File**: `app/src/main/java/com/mobile/data/GeminiService.kt`
+**Files**: `app/src/main/java/com/mobile/data/PaymentReminder*.kt`
 
-Integrates Google Gemini for the Habte AI Pro chat feature.
+Room-backed, alarm-app-style recurring bill/payment reminders — any number of independent reminders (rent, loans, subscriptions, ...), each with its own `AlarmManager` alarm keyed by row id.
 
-| Property | Value |
+| Component | Responsibility |
 |---|---|
-| Model | `gemini-2.0-flash-lite` |
-| Max history turns | 12 |
-| Max output tokens | 768 |
-| Temperature | 0.55 |
+| `PaymentReminderRepository` | StateFlow-backed CRUD over the `payment_reminders` Room table; keeps each reminder's alarm in sync with its `enabled` state |
+| `PaymentReminderScheduler` | Computes next occurrence per repeat type (one-time/weekly/monthly/yearly) and arms/cancels the `AlarmManager` alarm |
+| `PaymentReminderReceiver` | Fires on the armed alarm; notifies unless already marked paid, then re-arms (recurring) or disables itself (one-time) |
+| `PaymentReminderNotifier` | Posts the "payment due soon" notification |
 
-**Key Methods**:
-
-| Method | Description |
-|---|---|
-| `buildSnapshot(transactions, banks)` | Creates a cached financial context digest |
-| `streamMessage(userMessage, history, snapshot)` | Returns `Flow<String>` of streaming AI response |
-| `resetSession()` | Clears chat session and cached model |
-
-**Financial Snapshot Contents**:
-
-- Account summaries (top 5 banks)
-- Spend / income / net flow totals
-- Top 5 spending categories
-- Top 3 bank outflows
-- 8 most recent transactions
-
-**System Prompt Rules**:
-
-- ETB currency only
-- Never invent data not in the snapshot
-- Structured response: Headline → Analysis → Action
-- Max ~220 words unless deep audit requested
+`BootReceiver` re-arms every enabled reminder's alarm after a device reboot, since `AlarmManager` alarms don't survive a restart.
 
 ---
 
@@ -571,7 +557,7 @@ Integrates Google Gemini for the Habte AI Pro chat feature.
 ### Navigation Map
 
 ```
-Bottom Navigation (always visible except AI Chat):
+Bottom Navigation (always visible):
 ├── Analytics          → AnalyticsScreen
 ├── Budget             → BudgetScreen
 ├── Home (default)     → HomeScreen
@@ -579,12 +565,12 @@ Bottom Navigation (always visible except AI Chat):
 └── Settings           → SettingsScreen
 
 Secondary Routes (no bottom nav):
-├── ai_chat            → AiChatScreen
 ├── profile            → ProfileScreen
 ├── transaction_history → TransactionHistoryScreen
 ├── alerts             → AlertsScreen
 ├── security           → SecurityScreen
 ├── export_data        → ExportDataScreen
+├── payment_reminders  → PaymentRemindersScreen
 └── support            → SupportScreen
 ```
 
@@ -610,7 +596,6 @@ Financial insights dashboard:
 - Spending trend sparkline (derived from recent transactions)
 - Category breakdown
 - Per-bank analytics
-- Quick link to Habte AI
 
 #### BudgetScreen
 
@@ -618,18 +603,19 @@ Budget tracking and spending limits interface.
 
 #### ToolsScreen
 
-Grid of financial utilities:
+Sectioned grid of financial utilities, plus an "Upcoming Payment" hero card that live-surfaces the soonest due payment reminder:
 
-| Tool | Function |
-|---|---|
-| Transfer History | View all transactions |
-| Statement | Download statements |
-| Converter | Currency exchange rates |
-| Loan Calc | EMI calculator |
-| Tax Calc | Income tax estimator |
-| Alerts | Balance alert configuration |
-| Security | Navigate to security settings |
-| Export Data | CSV export |
+| Section | Tool | Function |
+|---|---|---|
+| Payments | Payment Reminders | Alarm-app-style recurring bill/rent/subscription reminders |
+| Payments | Loan Calc | EMI calculator |
+| Payments | Tax Calc | Income tax estimator |
+| Reports & Data | Transfer History | View all transactions |
+| Reports & Data | Statement | Download statements |
+| Reports & Data | Export Data | CSV export |
+| Exchange | Converter | Currency exchange rates |
+| Security & Alerts | Alerts | Balance alert configuration |
+| Security & Alerts | Security | Navigate to security settings |
 
 #### SettingsScreen
 
@@ -643,15 +629,13 @@ App configuration hub:
 - Cache management
 - Sign out (clears all data)
 
-#### AiChatScreen
+#### PaymentRemindersScreen
 
-Habte AI Pro chat interface:
+Alarm-app-style list of every payment reminder:
 
-- Streaming Gemini responses with markdown-style bold
-- 12 preset suggestion chips (spending summary, cost cutting, budget forecast, etc.)
-- Live financial snapshot banner
-- Copy message, regenerate response
-- Ideas panel toggle
+- Per-reminder enable/disable toggle, colored category icon, and status pill (Due today / Overdue / N days left / Paid / Off)
+- FAB to add a new reminder; tap a card to edit
+- Add/edit sheet: label, category, amount, payee, native date picker, repeat (one-time/weekly/monthly/yearly), lead time, "mark this cycle as paid"
 
 #### SecurityScreen
 
@@ -693,8 +677,7 @@ Uses Android Storage Access Framework (`CreateDocument`).
 | `AccountDetailSheet` | Bottom sheet for account details |
 | `TransactionDetailSheet` | Bottom sheet for transaction details |
 | `TopTabBar` | Horizontal tab selector |
-| `ErrorBoundary` | Catches Compose rendering errors |
-| `ErrorFallback` | Error display UI |
+| `ErrorFallback` | Full-screen error display, shown on next launch after `CrashReporter` persists an uncaught exception |
 | `KeyboardAwareColumn` | Keyboard-aware scroll container |
 
 ---
@@ -888,15 +871,17 @@ Requires signing configuration (not included in repo). Release builds have ProGu
 
 ### What Stays on Device
 
-- All SMS content and parsed transactions
+- All SMS content and parsed transactions (persisted locally via Room, `habte.db`)
 - Bank and account data
-- User settings and preferences
+- User settings and preferences (SharedPreferences)
+- Payment reminders
+- Crash reports (`CrashReporter` persists the last uncaught-exception trace locally to show `ErrorFallback` on next launch — never transmitted)
 - Balance and category information
 
 ### What Leaves the Device
 
-- **Gemini AI requests only**: When using Habte AI Pro, a summarized financial snapshot (not raw SMS) is sent to Google's Gemini API
-- No analytics, crash reporting, or cloud sync is implemented
+- **AdMob ad requests only** (banner/interstitial/rewarded/native ad formats). Google's Mobile Ads SDK collects advertising identifiers and request metadata per [Google's own advertising policies](https://policies.google.com/technologies/ads) — see AdMob's data safety documentation for what it collects.
+- No SMS content, transaction data, or financial data is ever transmitted off the device. No cloud sync.
 
 ### Permissions Justification
 
@@ -905,14 +890,17 @@ Requires signing configuration (not included in repo). Release builds have ProGu
 | `READ_SMS` | Parse historical bank notifications |
 | `RECEIVE_SMS` | Capture new transactions in real time |
 | `USE_BIOMETRIC` | Secure app access |
-| `INTERNET` | AI chat feature only |
+| `POST_NOTIFICATIONS` | Transaction, summary, and payment-reminder notifications |
+| `INTERNET` | AdMob ad requests |
 
 ### Data Retention
 
-- Financial data exists only in memory (`StateFlow`) during app session
-- Re-populated from SMS inbox on each launch via `syncHistoricalSms()`
+- Financial data, accounts, budgets, and payment reminders persist on-device via Room and survive app restarts and reboots
+- New transactions are added incrementally from live SMS (`SmsReceiver`) and on-demand historical re-sync (`syncHistoricalSms()`) — sync never overwrites a transaction's user-edited category or note
 - Settings persist in SharedPreferences across sessions
-- Sign out clears all financial data from memory
+- Sign out clears all persisted financial data (transactions, accounts, banks, budgets)
+
+> A public privacy policy meeting Google Play's requirements for SMS-permission and ads-enabled apps is required before a Play Store submission — see `PRIVACY_POLICY.md`.
 
 ---
 
@@ -925,13 +913,6 @@ Requires signing configuration (not included in repo). Release builds have ProGu
 3. Check sender ID matches supported patterns (see [SmsParser mapping](#sender-id-mapping))
 4. OTP and promotional messages are intentionally ignored
 
-### AI Chat Not Working
-
-1. Verify `GEMINI_API_KEY` is set in `local.properties`
-2. Rebuild after adding the key (`BuildConfig` is generated at build time)
-3. Check internet connectivity
-4. Error message: "Gemini API key missing" → key not configured
-
 ### Biometric Lock Issues
 
 1. Ensure device has biometric hardware enrolled
@@ -940,7 +921,7 @@ Requires signing configuration (not included in repo). Release builds have ProGu
 
 ### App Shows No Data After Restart
 
-Expected behavior — data is in-memory only. The app re-syncs from SMS inbox on each launch when permissions are granted.
+Not expected — transactions, accounts, and budgets persist via Room (`habte.db`) and should survive a restart. If data is genuinely missing, check whether the device's storage was cleared for the app (Settings → Apps → Habte → Storage → Clear Data), which deletes the local database.
 
 ### Build Failures
 
@@ -958,7 +939,7 @@ Expected behavior — data is in-memory only. The app re-syncs from SMS inbox on
 Contributions are welcome. Priority areas:
 
 1. **New SMS parsers** — Add support for additional Ethiopian banks or updated SMS formats
-2. **Persistent storage** — Room database for offline data retention
+2. **Production AdMob IDs** — swap `AdMobConfig`'s test ad unit IDs and the manifest's test `APPLICATION_ID` for real ones before release
 3. **Full Amharic localization** — Translate all UI strings
 4. **Budget features** — Enhanced budget tracking with alerts
 5. **Widget support** — Home screen balance widget
@@ -996,7 +977,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | Real-time SMS capture | `SmsReceiver.kt` |
 | Financial state | `FinanceRepository.kt` |
 | User preferences | `SettingsRepository.kt` |
-| AI chat | `GeminiService.kt`, `AiChatScreen.kt` |
+| Payment reminders | `PaymentReminderRepository.kt`, `PaymentReminderScheduler.kt`, `PaymentRemindersScreen.kt` |
 | Home dashboard | `HomeScreen.kt` |
 | Analytics | `AnalyticsScreen.kt` |
 | Data export | `ExportDataScreen.kt` |
@@ -1009,7 +990,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | Variable | Location | Required | Description |
 |---|---|---|---|
 | `sdk.dir` | `local.properties` | Yes | Android SDK path |
-| `GEMINI_API_KEY` | `local.properties` | No | Google Gemini API key for AI chat |
+| `storeFile`/`storePassword`/`keyAlias`/`keyPassword` | `keystore.properties` | Only for signed release builds | Release signing config |
 
 ---
 

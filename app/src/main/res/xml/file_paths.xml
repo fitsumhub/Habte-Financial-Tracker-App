@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- context.filesDir/certificates — rendered PNG/PDF certificates (CertificateExporter). -->
+    <files-path name="certificates" path="certificates/" />
+    <!-- context.filesDir/certificate_photos — user photos copied in at certificate-creation time. -->
+    <files-path name="certificate_photos" path="certificate_photos/" />
+</paths>

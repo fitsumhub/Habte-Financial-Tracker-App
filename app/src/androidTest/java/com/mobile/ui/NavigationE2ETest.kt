@@ -52,8 +52,8 @@ class NavigationE2ETest {
         // Tap the Analytics icon in the bottom nav
         composeTestRule.onNodeWithContentDescription("Analytics").performClick()
         composeTestRule.waitForIdle()
-        // Verify analytics-specific content (NET WORTH is unique to analytics)
-        composeTestRule.onNodeWithText("NET WORTH").assertExists()
+        // Verify analytics-specific content ("Transactions" section header is unique to analytics)
+        composeTestRule.onNodeWithText("Transactions").assertExists()
     }
 
     @Test
@@ -155,17 +155,8 @@ class NavigationE2ETest {
         composeTestRule.setContent {
             AppTheme { AppNavigation() }
         }
-        // "No transactions found yet." may be below fold — assertExists checks tree, not visibility
-        composeTestRule.onNodeWithText("No transactions found yet.").assertExists()
-    }
-
-    @Test
-    fun home_showsAiSection() {
-        composeTestRule.setContent {
-            AppTheme { AppNavigation() }
-        }
-        // "Habte AI" exists on the home screen AI card
-        composeTestRule.onNodeWithText("Habte AI").assertExists()
+        // "No transactions yet" may be below fold — assertExists checks tree, not visibility
+        composeTestRule.onNodeWithText("No transactions yet").assertExists()
     }
 
     @Test
@@ -204,7 +195,7 @@ class NavigationE2ETest {
 
         composeTestRule.onNodeWithContentDescription("Analytics").performClick()
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("NET WORTH").assertExists()
+        composeTestRule.onNodeWithText("Transactions").assertExists()
 
         composeTestRule.onNodeWithContentDescription("Budget").performClick()
         composeTestRule.waitForIdle()

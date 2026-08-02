@@ -6,7 +6,20 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+      Android 11+ hides other apps' package info by default (package visibility) unless
+      declared here — this is what lets InstalledBankAppMatcher actually see installed
+      launchable apps (to offer as notification-capture sources) without needing the
+      Play-Store-restricted QUERY_ALL_PACKAGES permission.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -35,6 +48,72 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".data.SummaryAlarmReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".data.PaymentReminderReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".data.PaymentReminderActionReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".data.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+          Only the system can bind to a NotificationListenerService (enforced by this
+          android:permission — a normal app can't bind to it directly), and only after the
+          user manually grants it in Settings > Notification access (see
+          NotificationCaptureScreen, Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).
+          Reading notification content is still gated further at runtime by
+          SettingsRepository.notificationCaptureEnabled + monitoredApps — granting this OS
+          permission alone doesn't turn capture on.
+        -->
+        <service
+            android:name=".data.NotificationCaptureListenerService"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!--
+          AdMob requires this App ID meta-data tag to exist, or the SDK throws at
+          MobileAds.initialize() time. This is Google's own public TEST App ID — safe to
+          ship as-is while the app is in development. Before a real release, swap this for
+          the app's real AdMob App ID from the AdMob console (see AdMobConfig.kt, which
+          documents every other test ID that also needs swapping at the same time).
+        -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
+
+        <!--
+          Lets AchievementCertificatesScreen share a generated certificate image/PDF to
+          other apps (WhatsApp, Telegram, etc.) via a content:// Uri — a raw file:// Uri
+          from internal storage can't be granted to another app on API 24+ (StrictMode
+          throws FileUriExposedException). See CertificateExporter.shareIntent and
+          res/xml/file_paths.xml for which internal directories are exposed.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 

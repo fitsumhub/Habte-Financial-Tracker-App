@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -41,17 +42,17 @@ fun SupportScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF070912))
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
     ) {
         // Header
         Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp).padding(bottom = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                Text("Support", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Support", color = MaterialTheme.colorScheme.onSurface, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -67,7 +68,7 @@ fun SupportScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))))
+                    .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)))
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -82,15 +83,15 @@ fun SupportScreen(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
 
             // Contact Options
-            Text("Contact Us", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+            Text("Contact Us", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
 
             SupportContactRow(
                 icon = Icons.Default.Phone,
                 title = "Call Support",
-                subtitle = "+251-800-HABTE",
-                color = Color(0xFF10B981),
+                subtitle = "+251925709550",
+                color = Color(0xFF059669),
                 onClick = {
-                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:+251800"))
+                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:+251925709550"))
                     context.startActivity(intent)
                 }
             )
@@ -99,7 +100,7 @@ fun SupportScreen(onBack: () -> Unit) {
                 icon = Icons.Default.Email,
                 title = "Email Us",
                 subtitle = "Fitsumenunu21@gmail.com",
-                color = Color(0xFF6366F1),
+                color = MaterialTheme.colorScheme.primary,
                 onClick = {
                     val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:Fitsumenunu21@gmail.com"))
                     context.startActivity(intent)
@@ -119,8 +120,16 @@ fun SupportScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(28.dp))
 
+            // Rewarded ad demo — a purely optional, non-critical action (never gates any
+            // real feature), which is exactly what rewarded ads are for. Habte has no
+            // premium tier today, so this just says thanks; a future paid feature could
+            // reuse the same AdMobService.showRewardedIfLoaded call as its unlock trigger.
+            SupportTheAppRow(context = context)
+
+            Spacer(modifier = Modifier.height(28.dp))
+
             // FAQ
-            Text("Frequently Asked Questions", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+            Text("Frequently Asked Questions", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
 
             faqs.forEachIndexed { index, (question, answer) ->
                 val isExpanded = expandedFaq == index
@@ -129,25 +138,70 @@ fun SupportScreen(onBack: () -> Unit) {
                         .fillMaxWidth()
                         .padding(bottom = 10.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF0E1527))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
                         .clickable { expandedFaq = if (isExpanded) -1 else index }
                         .padding(16.dp)
                 ) {
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(question, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text(question, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                             Icon(
                                 if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                contentDescription = null, tint = Color(0xFF64748B)
+                                contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         if (isExpanded) {
                             Spacer(modifier = Modifier.height(10.dp))
-                            Text(answer, color = Color(0xFF94A3B8), fontSize = 13.sp, lineHeight = 20.sp)
+                            Text(answer, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 20.sp)
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+/** Optional, non-critical rewarded-ad action — never gates a real feature, just says thanks. */
+@Composable
+private fun SupportTheAppRow(context: android.content.Context) {
+    var isShowingAd by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+            .clickable(enabled = !isShowingAd) {
+                val activity = context as? android.app.Activity ?: return@clickable
+                isShowingAd = true
+                com.mobile.ads.AdMobService.showRewardedIfLoaded(
+                    activity = activity,
+                    onReward = {
+                        Toast.makeText(context, "Thanks for supporting Habte!", Toast.LENGTH_LONG).show()
+                    },
+                    onClosed = { isShowingAd = false }
+                )
+            }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF59E0B).copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Favorite, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(22.dp))
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Support Habte", color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text("Watch a short ad — totally optional", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        }
+        if (isShowingAd) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+        } else {
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -164,7 +218,8 @@ private fun SupportContactRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF0E1527))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
             .clickable { onClick() }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -177,9 +232,9 @@ private fun SupportContactRow(
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = Color(0xFF64748B), fontSize = 13.sp)
+            Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
         }
-        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF64748B))
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,18 +14,22 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.rememberCoroutineScope
 import com.mobile.data.FinanceRepository
+import com.mobile.data.Transaction
+import kotlinx.coroutines.launch
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import org.json.JSONArray
 import org.json.JSONObject
@@ -33,6 +38,7 @@ import org.json.JSONObject
 @Composable
 fun ExportDataScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val transactions by FinanceRepository.transactions.collectAsState()
 
     val createCsvLauncher = rememberLauncherForActivityResult(
@@ -50,6 +56,11 @@ fun ExportDataScreen(onBack: () -> Unit) {
                     writer.flush()
                 }
                 Toast.makeText(context, "CSV saved successfully!", Toast.LENGTH_LONG).show()
+                // Interstitials belong after a non-critical action completes — exporting
+                // data (not a financial task itself) is exactly that.
+                (context as? android.app.Activity)?.let { activity ->
+                    com.mobile.ads.AdMobService.showInterstitialIfLoaded(activity)
+                }
             } catch (e: Exception) {
                 Toast.makeText(context, "Failed to save: ${e.message}", Toast.LENGTH_SHORT).show()
             }
@@ -71,16 +82,69 @@ fun ExportDataScreen(onBack: () -> Unit) {
                         obj.put("amount", t.amount)
                         obj.put("type", t.type)
                         obj.put("date", t.date)
+                        obj.put("time", t.time)
                         obj.put("category", t.category)
                         obj.put("bankShortName", t.bankShortName)
+                        obj.put("balance", t.balance)
+                        obj.put("accountSuffix", t.accountSuffix)
+                        obj.put("reason", t.reason)
                         jsonArray.put(obj)
                     }
                     writer.write(jsonArray.toString(4))
                     writer.flush()
                 }
                 Toast.makeText(context, "JSON saved successfully!", Toast.LENGTH_LONG).show()
+                // Interstitials belong after a non-critical action completes — exporting
+                // data (not a financial task itself) is exactly that.
+                (context as? android.app.Activity)?.let { activity ->
+                    com.mobile.ads.AdMobService.showInterstitialIfLoaded(activity)
+                }
             } catch (e: Exception) {
                 Toast.makeText(context, "Failed to save: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    var isRestoring by remember { mutableStateOf(false) }
+    val openJsonLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            isRestoring = true
+            scope.launch {
+                try {
+                    val text = context.contentResolver.openInputStream(it)?.use { input ->
+                        BufferedReader(InputStreamReader(input)).readText()
+                    }
+                    if (text.isNullOrBlank()) {
+                        Toast.makeText(context, "That file is empty.", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    val array = JSONArray(text)
+                    val restored = mutableListOf<Transaction>()
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        restored += Transaction(
+                            id = obj.getString("id"),
+                            title = obj.getString("title"),
+                            amount = obj.getDouble("amount"),
+                            date = obj.getString("date"),
+                            type = obj.getString("type"),
+                            bankShortName = obj.getString("bankShortName"),
+                            category = obj.optString("category", "Other"),
+                            balance = if (obj.isNull("balance")) null else obj.optDouble("balance"),
+                            accountSuffix = if (obj.isNull("accountSuffix")) null else obj.optString("accountSuffix"),
+                            time = obj.optString("time", ""),
+                            reason = obj.optString("reason", "")
+                        )
+                    }
+                    FinanceRepository.restoreTransactions(restored)
+                    Toast.makeText(context, "Restored ${restored.size} transaction(s).", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Couldn't read backup: ${e.message}", Toast.LENGTH_SHORT).show()
+                } finally {
+                    isRestoring = false
+                }
             }
         }
     }
@@ -88,7 +152,7 @@ fun ExportDataScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF070912))
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
     ) {
         // Header
@@ -102,22 +166,22 @@ fun ExportDataScreen(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = "Export Data",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
-        
+
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             Text(
-                text = "Download your financial data for backup or external analysis. All files are encrypted before export.",
-                color = Color(0xFF64748B),
+                text = "Download your financial data for backup or external analysis. Files are saved wherever you choose on your device — keep them somewhere private.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(bottom = 24.dp)
             )
@@ -151,6 +215,30 @@ fun ExportDataScreen(onBack: () -> Unit) {
                     }
                 }
             )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = "Restore Backup",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Text(
+                text = "Bring transactions back from a JSON file exported by Habte. Existing transactions are never overwritten.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            ExportOptionRow(
+                title = if (isRestoring) "Restoring…" else "Import from JSON",
+                subtitle = "Select a previously exported .json backup",
+                icon = Icons.Default.Upload,
+                loading = isRestoring,
+                onClick = { openJsonLauncher.launch(arrayOf("application/json")) }
+            )
         }
     }
 }
@@ -160,14 +248,16 @@ fun ExportOptionRow(
     title: String,
     subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    loading: Boolean = false,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF0E1527), Color(0xFF161E36))))
-            .clickable { onClick() }
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+            .clickable(enabled = !loading) { onClick() }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -175,16 +265,20 @@ fun ExportOptionRow(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF1E293B)),
+                .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = Color(0xFF818CF8), modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = Color(0xFF64748B), fontSize = 13.sp)
+            Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
         }
-        Icon(Icons.Default.Download, contentDescription = null, tint = Color(0xFF6366F1))
+        if (loading) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+        } else {
+            Icon(Icons.Default.Download, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        }
     }
 }

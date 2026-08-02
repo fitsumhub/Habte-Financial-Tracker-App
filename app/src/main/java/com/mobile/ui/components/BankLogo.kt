@@ -37,22 +37,22 @@ fun BankLogo(
             .border(1.dp, Color(0x40FFFFFF), CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        if (domain != null) {
-            AsyncImage(
-                model = "https://www.google.com/s2/favicons?domain=${domain}&sz=128",
-                contentDescription = shortName,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(if (shortName == "DAS") 6.dp else 0.dp),
-                contentScale = ContentScale.Fit
-            )
-        } else if (resId != null) {
+        if (resId != null) {
             Image(
                 painter = painterResource(id = resId),
                 contentDescription = shortName,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(if (shortName == "DAS") 6.dp else 0.dp), // add some padding to the dashen star logo so it isn't completely flush with edges
+                contentScale = ContentScale.Fit
+            )
+        } else if (domain != null) {
+            AsyncImage(
+                model = "https://www.google.com/s2/favicons?domain=${domain}&sz=128",
+                contentDescription = shortName,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(if (shortName == "DAS") 6.dp else 0.dp),
                 contentScale = ContentScale.Fit
             )
         } else {

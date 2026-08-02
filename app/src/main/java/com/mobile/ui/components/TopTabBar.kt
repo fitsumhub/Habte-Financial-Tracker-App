@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -36,10 +37,10 @@ fun TopTabBar(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(if (isActive) Color(0xFF6366F1) else Color(0xFF0E1527))
+                    .background(if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
                     .border(
                         width = 1.dp,
-                        color = if (isActive) Color(0xFF6366F1) else Color(0xFF1A2240),
+                        color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                         shape = RoundedCornerShape(20.dp)
                     )
                     .clickable { onSelect(tab.key) }
@@ -48,7 +49,7 @@ fun TopTabBar(
             ) {
                 Text(
                     text = tab.label,
-                    color = if (isActive) Color.White else Color(0xFF7B84A8),
+                    color = if (isActive) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
                 )

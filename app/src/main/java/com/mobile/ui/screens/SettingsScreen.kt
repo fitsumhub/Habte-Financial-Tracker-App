@@ -28,12 +28,25 @@ import androidx.compose.animation.*
 import androidx.compose.ui.draw.scale
 import com.mobile.data.FinanceRepository
 import com.mobile.data.SettingsRepository
+import com.mobile.data.SummaryScheduler
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
 import android.widget.Toast
 
+// BUG FIX: Screen still hardcoded the old dark palette; route through
+// MaterialTheme.colorScheme tokens to match the light corporate theme.
+private val ExpenseColor = Color(0xFFDC2626)
+
+private fun cacheDirSizeMb(context: android.content.Context): Double {
+    fun sizeOf(file: java.io.File): Long =
+        if (file.isDirectory) file.listFiles()?.sumOf { sizeOf(it) } ?: 0L else file.length()
+    return sizeOf(context.cacheDir) / (1024.0 * 1024.0)
+}
+
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -42,26 +55,31 @@ fun SettingsScreen() {
     val autoHide by SettingsRepository.autoHideBalances.collectAsState()
     val privacyMode by SettingsRepository.privacyMode.collectAsState()
     val notifications by SettingsRepository.notificationsEnabled.collectAsState()
-    val emailUpdates by SettingsRepository.emailUpdates.collectAsState()
     val smsAlerts by SettingsRepository.smsAlerts.collectAsState()
-    val currency by SettingsRepository.currency.collectAsState()
-    val language by SettingsRepository.language.collectAsState()
+    val notificationCaptureEnabled by SettingsRepository.notificationCaptureEnabled.collectAsState()
     val dateFormat by SettingsRepository.dateFormat.collectAsState()
+    val calendarSystem by SettingsRepository.calendarSystem.collectAsState()
     val theme by SettingsRepository.theme.collectAsState()
-    
+    val userName by SettingsRepository.userName.collectAsState()
+    val userEmail by SettingsRepository.userEmail.collectAsState()
+    val summaryFrequencies by SettingsRepository.summaryFrequencies.collectAsState()
+    val adFreeUntilMillis by SettingsRepository.adFreeUntilMillis.collectAsState()
+    val isAdFree = System.currentTimeMillis() < adFreeUntilMillis
+
     var isSyncing by remember { mutableStateOf(false) }
-    var showCurrencyDialog by remember { mutableStateOf(false) }
-    var showLanguageDialog by remember { mutableStateOf(false) }
     var showDateFormatDialog by remember { mutableStateOf(false) }
+    var showCalendarSystemDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showSummaryFrequencyDialog by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
     var showTermsDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showSignOutConfirm by remember { mutableStateOf(false) }
-    
-    var userName by remember { mutableStateOf("Fitsum") }
-    var userEmail by remember { mutableStateOf("fitsum@example.com") }
-    var cacheSize by remember { mutableStateOf(12.4) }
+
+    var cacheSize by remember { mutableStateOf(0.0) }
+    LaunchedEffect(Unit) {
+        cacheSize = withContext(Dispatchers.IO) { cacheDirSizeMb(context) }
+    }
 
     val transactions by FinanceRepository.transactions.collectAsState()
 
@@ -90,7 +108,7 @@ fun SettingsScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF070912))
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
     ) {
         // Header
@@ -101,10 +119,9 @@ fun SettingsScreen() {
         ) {
             Text(
                 text = "Settings",
-                color = Color.White,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
             )
         }
 
@@ -125,12 +142,12 @@ fun SettingsScreen() {
                     .background(
                         Brush.linearGradient(
                             listOf(
-                                Color(0xFF6366F1),
-                                Color(0xFF8B5CF6)
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.secondary
                             )
                         )
                     )
-                    .clickable { 
+                    .clickable {
                          haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                          showProfileDialog = true
                     }
@@ -196,7 +213,7 @@ fun SettingsScreen() {
                         SettingsRepository.setBiometric(it) 
                     }
                 )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingToggleRow(
                     icon = Icons.Default.Search, // Placeholder for VisibilityOff
                     label = "Auto-hide Balances",
@@ -207,7 +224,7 @@ fun SettingsScreen() {
                         SettingsRepository.setAutoHideBalances(it) 
                     }
                 )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingToggleRow(
                     icon = Icons.Default.Build, // Placeholder for Shield
                     label = "Privacy Mode",
@@ -234,26 +251,39 @@ fun SettingsScreen() {
                         SettingsRepository.setNotifications(it) 
                     }
                 )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
-                SettingToggleRow(
-                    icon = Icons.Default.Email,
-                    label = "Email Updates",
-                    description = "Monthly statements and news",
-                    checked = emailUpdates,
-                    onCheckedChange = { 
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        SettingsRepository.setEmailUpdates(it)
-                    }
-                )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingToggleRow(
                     icon = Icons.Default.Send,
                     label = "SMS Alerts",
                     description = "Transaction notifications via SMS",
                     checked = smsAlerts,
-                    onCheckedChange = { 
+                    onCheckedChange = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         SettingsRepository.setSmsAlerts(it)
+                    }
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
+                SettingOptionRow(
+                    icon = Icons.Default.Summarize,
+                    label = "Spending Summary",
+                    value = if (summaryFrequencies.isEmpty()) {
+                        "Off"
+                    } else {
+                        summaryFrequencies.sortedBy { SummaryScheduler.ALL_FREQUENCIES.indexOf(it) }.joinToString(", ")
+                    },
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showSummaryFrequencyDialog = true
+                    }
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
+                SettingOptionRow(
+                    icon = Icons.Default.NotificationsActive,
+                    label = "Notification Capture",
+                    value = if (notificationCaptureEnabled) "On" else "Off",
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onNavigate("notification_capture")
                     }
                 )
             }
@@ -262,36 +292,46 @@ fun SettingsScreen() {
 
             // Group: Preferences
             SettingsGroup("PREFERENCES") {
+                // Not user-selectable: every transaction is parsed directly from Ethiopian
+                // bank/telecom SMS in Birr, so a currency picker with no real conversion
+                // behind it would just mislabel real amounts. See feedback_settings_functionality.
                 SettingOptionRow(
                     icon = Icons.Default.ShoppingCart,
                     label = "Currency",
-                    value = currency,
-                    onClick = { 
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showCurrencyDialog = true 
-                    }
+                    value = "Ethiopian Birr (ETB)",
+                    interactive = false
                 )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
+                // Not user-selectable: the app has no localized strings beyond the app name
+                // (see res/values-am) — a language picker with nothing behind it would just
+                // silently do nothing when switched.
                 SettingOptionRow(
                     icon = Icons.Default.Face,
                     label = "Language",
-                    value = language,
-                    onClick = { 
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showLanguageDialog = true 
-                    }
+                    value = "English",
+                    interactive = false
                 )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingOptionRow(
                     icon = Icons.Default.DateRange,
                     label = "Date Format",
                     value = dateFormat,
-                    onClick = { 
+                    onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         showDateFormatDialog = true
                     }
                 )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
+                SettingOptionRow(
+                    icon = Icons.Default.CalendarMonth,
+                    label = "Calendar System",
+                    value = calendarSystem,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showCalendarSystemDialog = true
+                    }
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingOptionRow(
                     icon = Icons.Default.Settings,
                     label = "Theme",
@@ -324,23 +364,25 @@ fun SettingsScreen() {
                         }
                     }
                 )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingOptionRow(
                     icon = Icons.Default.Delete,
                     label = "Cache Size",
                     value = String.format("%.1f MB", cacheSize),
-                    onClick = { 
+                    onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        try {
-                            context.cacheDir.deleteRecursively()
-                            cacheSize = 0.0
-                            Toast.makeText(context, "Cache cleared successfully!", Toast.LENGTH_SHORT).show()
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Failed to clear cache", Toast.LENGTH_SHORT).show()
+                        scope.launch {
+                            try {
+                                withContext(Dispatchers.IO) { context.cacheDir.deleteRecursively() }
+                                cacheSize = withContext(Dispatchers.IO) { cacheDirSizeMb(context) }
+                                Toast.makeText(context, "Cache cleared successfully!", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Failed to clear cache", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingOptionRow(
                     icon = Icons.Default.Share,
                     label = "Export Data",
@@ -355,14 +397,48 @@ fun SettingsScreen() {
                         }
                     }
                 )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingOptionRow(
                     icon = Icons.Default.Add,
                     label = "Import Data",
                     value = "",
-                    onClick = { 
+                    onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        Toast.makeText(context, "CSV Import coming in v2.2.0", Toast.LENGTH_SHORT).show()
+                        onNavigate("export_data")
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Group: Support — lets a user trade a short rewarded ad for a 24-hour break
+            // from banner/interstitial ads, instead of those formats being pure dead code.
+            SettingsGroup("SUPPORT") {
+                SettingOptionRow(
+                    icon = Icons.Default.CardGiftcard,
+                    label = if (isAdFree) "Ad-Free Active" else "Go Ad-Free for 24 Hours",
+                    value = if (isAdFree) {
+                        val remainingMs = (adFreeUntilMillis - System.currentTimeMillis()).coerceAtLeast(0)
+                        val hours = remainingMs / (60 * 60 * 1000)
+                        val minutes = (remainingMs % (60 * 60 * 1000)) / (60 * 1000)
+                        "${hours}h ${minutes}m left"
+                    } else {
+                        "Watch a short ad"
+                    },
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        val activity = context as? android.app.Activity
+                        if (activity != null && com.mobile.ads.AdMobService.isRewardedAdReady) {
+                            com.mobile.ads.AdMobService.showRewardedIfLoaded(
+                                activity,
+                                onReward = {
+                                    SettingsRepository.grantAdFree(24 * 60 * 60 * 1000L)
+                                    Toast.makeText(context, "You're ad-free for the next 24 hours!", Toast.LENGTH_LONG).show()
+                                }
+                            )
+                        } else {
+                            Toast.makeText(context, "Ad not ready yet — please try again shortly", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 )
             }
@@ -370,17 +446,21 @@ fun SettingsScreen() {
             Spacer(modifier = Modifier.height(24.dp))
 
             // Group: About
+            val versionName = remember {
+                try {
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "—"
+                } catch (e: Exception) {
+                    "—"
+                }
+            }
             SettingsGroup("ABOUT") {
                 SettingOptionRow(
                     icon = Icons.Default.Info,
                     label = "Version",
-                    value = "2.1.0",
-                    onClick = { 
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        Toast.makeText(context, "Version 2.1.0", Toast.LENGTH_SHORT).show()
-                    }
+                    value = versionName,
+                    interactive = false
                 )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingOptionRow(
                     icon = Icons.Default.List,
                     label = "Terms of Service",
@@ -390,7 +470,7 @@ fun SettingsScreen() {
                         showTermsDialog = true
                     }
                 )
-                HorizontalDivider(color = Color(0x0DFFFFFF), modifier = Modifier.padding(start = 56.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingOptionRow(
                     icon = Icons.Default.Lock,
                     label = "Privacy Policy",
@@ -409,9 +489,9 @@ fun SettingsScreen() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF1A0A0A))
-                    .border(1.dp, Color(0xFF3D1515), RoundedCornerShape(16.dp))
-                    .clickable { 
+                    .background(ExpenseColor.copy(alpha = 0.08f))
+                    .border(1.dp, ExpenseColor.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                    .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         showSignOutConfirm = true
                     }
@@ -420,32 +500,17 @@ fun SettingsScreen() {
             ) {
                 Text(
                     text = "Sign Out",
-                    color = Color(0xFFEF4444),
+                    color = ExpenseColor,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
+
+            // Settings is one of the few screens allowed to show a banner ad (see
+            // AdMobConfig.BANNER_ALLOWED_ROUTES) — never a financial-action screen.
+            Spacer(modifier = Modifier.height(20.dp))
+            com.mobile.ads.BannerAdView()
         }
-    }
-
-    if (showCurrencyDialog) {
-        SelectionDialog(
-            title = "Select Currency",
-            options = listOf("ETB", "USD", "EUR", "GBP"),
-            selected = currency,
-            onSelect = { SettingsRepository.setCurrency(it) },
-            onDismiss = { showCurrencyDialog = false }
-        )
-    }
-
-    if (showLanguageDialog) {
-        SelectionDialog(
-            title = "Select Language",
-            options = listOf("English", "Amharic", "Oromifa"),
-            selected = language,
-            onSelect = { SettingsRepository.setLanguage(it) },
-            onDismiss = { showLanguageDialog = false }
-        )
     }
 
     if (showDateFormatDialog) {
@@ -455,6 +520,16 @@ fun SettingsScreen() {
             selected = dateFormat,
             onSelect = { SettingsRepository.setDateFormat(it) },
             onDismiss = { showDateFormatDialog = false }
+        )
+    }
+
+    if (showCalendarSystemDialog) {
+        SelectionDialog(
+            title = "Select Calendar System",
+            options = listOf("Gregorian", "Ethiopian"),
+            selected = calendarSystem,
+            onSelect = { SettingsRepository.setCalendarSystem(it) },
+            onDismiss = { showCalendarSystemDialog = false }
         )
     }
 
@@ -468,11 +543,29 @@ fun SettingsScreen() {
         )
     }
 
+    if (showSummaryFrequencyDialog) {
+        MultiSelectionDialog(
+            title = "Spending Summary",
+            subtitle = "Choose any combination — each fires independently.",
+            options = SummaryScheduler.ALL_FREQUENCIES,
+            selectedOptions = summaryFrequencies,
+            onToggle = { frequency, enabled ->
+                val updated = if (enabled) summaryFrequencies + frequency else summaryFrequencies - frequency
+                SettingsRepository.setSummaryFrequencies(updated)
+                SummaryScheduler.toggle(context, frequency, enabled)
+            },
+            onDismiss = { showSummaryFrequencyDialog = false }
+        )
+    }
+
     if (showProfileDialog) {
         ProfileEditDialog(
             currentName = userName,
             currentEmail = userEmail,
-            onSave = { name, email -> userName = name; userEmail = email },
+            onSave = { name, email ->
+                SettingsRepository.setUserName(name)
+                SettingsRepository.setUserEmail(email)
+            },
             onDismiss = { showProfileDialog = false }
         )
     }
@@ -488,7 +581,13 @@ fun SettingsScreen() {
     if (showPrivacyDialog) {
         InfoDialog(
             title = "Privacy Policy",
-            content = "Your privacy is our priority.\n\n- We do not upload your financial data to any external servers.\n- Your SMS messages are processed locally on your device.\n- No personal information is shared with third parties.\n- Analytics data is anonymized and used only for app improvement.",
+            content = "Your privacy is our priority.\n\n" +
+                "- Your SMS messages, transactions, accounts, budgets, and payment reminders are processed and stored locally on your device only — never uploaded anywhere.\n" +
+                "- There is no cloud sync and no account/login system.\n" +
+                "- The app shows ads via Google AdMob, which may collect an advertising identifier per Google's own policies — but AdMob never receives your SMS or financial data.\n" +
+                "- Bank logos are fetched from Google's public favicon service using only the bank's domain name.\n" +
+                "- Crash reports are saved locally to help recover the app after a crash and are never transmitted.\n\n" +
+                "Full policy: https://fitsumhub.github.io/Habte-Financial-Tracker-App/privacy-policy.html",
             onDismiss = { showPrivacyDialog = false }
         )
     }
@@ -496,23 +595,26 @@ fun SettingsScreen() {
     if (showSignOutConfirm) {
         AlertDialog(
             onDismissRequest = { showSignOutConfirm = false },
-            title = { Text("Sign Out?", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = { Text("Are you sure you want to sign out of your account?", color = Color(0xFF9CA3AF)) },
-            containerColor = Color(0xFF1E293B),
+            title = { Text("Sign Out?", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+            text = { Text("Habte has no cloud account to sign out of — your data stays safely on this device. Signing out just closes the app; reopen it anytime and everything will be exactly as you left it.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(24.dp),
             confirmButton = {
                 TextButton(
-                    onClick = { 
+                    onClick = {
                         showSignOutConfirm = false
-                        Toast.makeText(context, "Signed out successfully.", Toast.LENGTH_LONG).show()
+                        (context as? android.app.Activity)?.let { activity ->
+                            activity.finishAffinity()
+                            android.os.Process.killProcess(android.os.Process.myPid())
+                        }
                     }
                 ) {
-                    Text("Confirm Sign Out", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                    Text("Close App", color = ExpenseColor, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutConfirm = false }) {
-                    Text("Cancel", color = Color(0xFF818CF8))
+                    Text("Cancel", color = MaterialTheme.colorScheme.primary)
                 }
             }
         )
@@ -532,8 +634,8 @@ private fun ProfileEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Profile", color = Color.White, fontWeight = FontWeight.Bold) },
-        containerColor = Color(0xFF1E293B),
+        title = { Text("Edit Profile", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(24.dp),
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -542,11 +644,11 @@ private fun ProfileEditDialog(
                     onValueChange = { name = it },
                     label = { Text("Name") },
                     colors = TextFieldDefaults.outlinedTextFieldColors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        cursorColor = Color(0xFF818CF8),
-                        focusedBorderColor = Color(0xFF818CF8),
-                        unfocusedBorderColor = Color(0xFF4B5563)
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
                     )
                 )
                 OutlinedTextField(
@@ -554,23 +656,23 @@ private fun ProfileEditDialog(
                     onValueChange = { email = it },
                     label = { Text("Email") },
                     colors = TextFieldDefaults.outlinedTextFieldColors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        cursorColor = Color(0xFF818CF8),
-                        focusedBorderColor = Color(0xFF818CF8),
-                        unfocusedBorderColor = Color(0xFF4B5563)
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
                     )
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = { onSave(name, email); onDismiss() }) {
-                Text("Save Changes", color = Color(0xFF818CF8), fontWeight = FontWeight.Bold)
+                Text("Save Changes", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF9CA3AF))
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     )
@@ -584,17 +686,17 @@ private fun InfoDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title, color = Color.White, fontWeight = FontWeight.Bold) },
-        text = { 
+        title = { Text(title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+        text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text(content, color = Color(0xFF9CA3AF), lineHeight = 20.sp)
+                Text(content, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 20.sp)
             }
         },
-        containerColor = Color(0xFF1E293B),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(24.dp),
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close", color = Color(0xFF818CF8), fontWeight = FontWeight.Bold)
+                Text("Close", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
         }
     )
@@ -608,7 +710,7 @@ private fun SettingsGroup(
     Column {
         Text(
             text = title,
-            color = Color(0xFF6B7280),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.2.sp,
@@ -618,8 +720,8 @@ private fun SettingsGroup(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF0E1527))
-                .border(1.dp, Color(0xFF1A2240), RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
         ) {
             content()
         }
@@ -647,13 +749,13 @@ fun SettingToggleRow(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF1E293B)),
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (enabled) Color(0xFF818CF8) else Color(0xFF4B5563),
+                    tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -662,13 +764,13 @@ fun SettingToggleRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = label,
-                color = if (enabled) Color.White else Color(0xFF6B7280),
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
             )
             Text(
                 text = description,
-                color = if (enabled) Color(0xFF9CA3AF) else Color(0xFF4B5563),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 2.dp)
             )
@@ -680,10 +782,10 @@ fun SettingToggleRow(
             enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = Color(0xFF6366F1),
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
                 checkedBorderColor = Color.Transparent,
-                uncheckedThumbColor = Color(0xFF9CA3AF),
-                uncheckedTrackColor = Color(0xFF1E293B),
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
                 uncheckedBorderColor = Color.Transparent
             ),
             modifier = Modifier.scale(0.85f)
@@ -696,12 +798,13 @@ fun SettingOptionRow(
     icon: ImageVector? = null,
     label: String,
     value: String,
-    onClick: () -> Unit
+    interactive: Boolean = true,
+    onClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .then(if (interactive) Modifier.clickable { onClick() } else Modifier)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -710,13 +813,13 @@ fun SettingOptionRow(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF1E293B)),
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = Color(0xFF818CF8),
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -725,26 +828,28 @@ fun SettingOptionRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = label,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
             )
             if (value.isNotEmpty()) {
                 Text(
                     text = value,
-                    color = Color(0xFF9CA3AF),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        Icon(
-            imageVector = Icons.Default.KeyboardArrowRight,
-            contentDescription = "Next",
-            tint = Color(0xFF6B7280),
-            modifier = Modifier.size(20.dp)
-        )
+        if (interactive) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowRight,
+                contentDescription = "Next",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }
 
@@ -759,8 +864,8 @@ private fun SelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title, color = Color.White, fontWeight = FontWeight.Bold) },
-        containerColor = Color(0xFF1E293B),
+        title = { Text(title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(24.dp),
         text = {
             Column {
@@ -777,13 +882,13 @@ private fun SelectionDialog(
                             selected = option == selected,
                             onClick = { onSelect(option); onDismiss() },
                             colors = RadioButtonDefaults.colors(
-                                selectedColor = Color(0xFF818CF8),
-                                unselectedColor = Color(0xFF4B5563)
+                                selectedColor = MaterialTheme.colorScheme.primary,
+                                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                         Text(
-                            text = option, 
-                            color = if (option == selected) Color.White else Color(0xFF9CA3AF), 
+                            text = option,
+                            color = if (option == selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 16.sp,
                             modifier = Modifier.padding(start = 12.dp)
                         )
@@ -793,7 +898,68 @@ private fun SelectionDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF818CF8), fontWeight = FontWeight.SemiBold)
+                Text("Cancel", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MultiSelectionDialog(
+    title: String,
+    subtitle: String? = null,
+    options: List<String>,
+    selectedOptions: Set<String>,
+    onToggle: (option: String, enabled: Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(24.dp),
+        text = {
+            Column {
+                if (subtitle != null) {
+                    Text(
+                        subtitle,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+                options.forEach { option ->
+                    val isChecked = option in selectedOptions
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onToggle(option, !isChecked) }
+                            .padding(vertical = 12.dp, horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = isChecked,
+                            onCheckedChange = { onToggle(option, it) },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = MaterialTheme.colorScheme.primary,
+                                uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+                        Text(
+                            text = option,
+                            color = if (isChecked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 16.sp,
+                            modifier = Modifier.padding(start = 12.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Done", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
             }
         }
     )

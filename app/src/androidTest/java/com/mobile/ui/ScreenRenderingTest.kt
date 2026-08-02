@@ -76,57 +76,35 @@ class ScreenRenderingTest {
     // ── Analytics Screen ─────────────────────────────────────────────────
 
     @Test
-    fun analyticsScreen_displaysNetWorth() {
+    fun analyticsScreen_displaysHeader() {
         composeTestRule.setContent {
-            AppTheme { AnalyticsScreen(onNavigateToAi = {}) }
+            AppTheme { AnalyticsScreen() }
         }
-        composeTestRule.onNodeWithText("NET WORTH").assertExists()
+        composeTestRule.onNodeWithText("Analytics").assertIsDisplayed()
     }
 
     @Test
-    fun analyticsScreen_showsGrowthTrend() {
+    fun analyticsScreen_showsHeatmapToggle() {
         composeTestRule.setContent {
-            AppTheme { AnalyticsScreen(onNavigateToAi = {}) }
+            AppTheme { AnalyticsScreen() }
         }
-        composeTestRule.onNodeWithText("Growth Trend").assertExists()
+        composeTestRule.onNodeWithText("Heatmap").assertExists()
     }
 
     @Test
-    fun analyticsScreen_showsSyncHint() {
+    fun analyticsScreen_showsEmptyTransactionsHint() {
         composeTestRule.setContent {
-            AppTheme { AnalyticsScreen(onNavigateToAi = {}) }
+            AppTheme { AnalyticsScreen() }
         }
-        composeTestRule.onNodeWithText("Sync banks to see growth trend").assertExists()
-    }
-
-    // ── AI Chat Screen ───────────────────────────────────────────────────
-
-    @Test
-    fun aiChatScreen_displaysHeader() {
-        composeTestRule.setContent {
-            AppTheme { AiChatScreen(onBack = {}) }
-        }
-        // "Habte AI" appears in header, placeholder, and sender label. Use first one (header).
-        composeTestRule.onAllNodesWithText("Habte AI").onFirst().assertIsDisplayed()
+        composeTestRule.onNodeWithText("No transactions this month.").assertExists()
     }
 
     @Test
-    fun aiChatScreen_showsInitialMessages() {
+    fun analyticsScreen_showsIncomeVsExpense() {
         composeTestRule.setContent {
-            AppTheme { AiChatScreen(onBack = {}) }
+            AppTheme { AnalyticsScreen() }
         }
-        composeTestRule.onNodeWithText("Hello! I'm Habte AI. How can I help you with your finances today?")
-            .assertExists()
-    }
-
-    @Test
-    fun aiChatScreen_backButtonCallsOnBack() {
-        var backCalled = false
-        composeTestRule.setContent {
-            AppTheme { AiChatScreen(onBack = { backCalled = true }) }
-        }
-        composeTestRule.onNodeWithContentDescription("Back").performClick()
-        assert(backCalled)
+        composeTestRule.onNodeWithText("Income vs Expense").assertExists()
     }
 
     // ── Export Data Screen ───────────────────────────────────────────────

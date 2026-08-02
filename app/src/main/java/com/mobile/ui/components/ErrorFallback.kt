@@ -33,7 +33,7 @@ fun ErrorFallback(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF070912)),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         // Debug details button — top-right corner
@@ -43,14 +43,14 @@ fun ErrorFallback(
                 .padding(16.dp)
                 .size(44.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF0E1527))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .clickable { showDetails = true },
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.ErrorOutline,
                 contentDescription = "View error details",
-                tint = Color(0xFFF0F2FF)
+                tint = MaterialTheme.colorScheme.onSurface
             )
         }
 
@@ -61,7 +61,7 @@ fun ErrorFallback(
         ) {
             Text(
                 text = "Something went wrong",
-                color = Color(0xFFF0F2FF),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -69,14 +69,14 @@ fun ErrorFallback(
             )
             Text(
                 text = "Please reload the app to continue.",
-                color = Color(0xFF7B84A8),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 16.sp,
                 textAlign = TextAlign.Center,
                 lineHeight = 24.sp
             )
             Button(
                 onClick = resetError,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier
                     .width(200.dp)
@@ -106,7 +106,7 @@ private fun ErrorDetailsDialog(error: Throwable, onDismiss: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF070912))
+                .background(MaterialTheme.colorScheme.background)
         ) {
             Row(
                 modifier = Modifier
@@ -117,7 +117,7 @@ private fun ErrorDetailsDialog(error: Throwable, onDismiss: () -> Unit) {
             ) {
                 Text(
                     text = "Error Details",
-                    color = Color(0xFFF0F2FF),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -125,7 +125,7 @@ private fun ErrorDetailsDialog(error: Throwable, onDismiss: () -> Unit) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close",
-                        tint = Color(0xFFF0F2FF)
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -141,12 +141,12 @@ private fun ErrorDetailsDialog(error: Throwable, onDismiss: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF0E1527))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(16.dp)
                 ) {
                     Text(
                         text = error.stackTraceToString(),
-                        color = Color(0xFFF0F2FF),
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace,
                         lineHeight = 18.sp

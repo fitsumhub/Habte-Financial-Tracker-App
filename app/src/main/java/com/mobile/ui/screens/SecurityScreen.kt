@@ -1,6 +1,7 @@
-package com.mobile.ui.screens
+﻿package com.mobile.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -29,7 +30,7 @@ fun SecurityScreen(onBack: () -> Unit) {
     val biometricEnabled by SettingsRepository.biometricEnabled.collectAsState()
     val autoHideBalances by SettingsRepository.autoHideBalances.collectAsState()
     val privacyMode by SettingsRepository.privacyMode.collectAsState()
-    val currentPin by SettingsRepository.appPin.collectAsState()
+    val hasPinSet by SettingsRepository.hasPinSet.collectAsState()
     val context = LocalContext.current
 
     var showChangePinModal by remember { mutableStateOf(false) }
@@ -37,7 +38,7 @@ fun SecurityScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF070912))
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
     ) {
         // Header
@@ -51,12 +52,12 @@ fun SecurityScreen(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
                     text = "Security",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -103,7 +104,8 @@ fun SecurityScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF0E1527))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
                     .clickable { showChangePinModal = true }
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -112,24 +114,25 @@ fun SecurityScreen(onBack: () -> Unit) {
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF1E293B)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFF818CF8), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Change App PIN", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Update your 4-digit security PIN", color = Color(0xFF64748B), fontSize = 13.sp)
+                    Text(if (hasPinSet) "Change App PIN" else "Set App PIN", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(if (hasPinSet) "Update your 4-digit security PIN" else "Create a 4-digit security PIN", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 }
-                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF64748B))
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
 
     if (showChangePinModal) {
         ChangePinModal(
-            currentPin = currentPin,
+            hasPinSet = hasPinSet,
+            verifyOldPin = { SettingsRepository.verifyPin(it) },
             onClose = { showChangePinModal = false },
             onPinChanged = { newPin ->
                 SettingsRepository.setAppPin(newPin)
@@ -152,7 +155,8 @@ fun SecuritySettingRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF0E1527))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -160,24 +164,24 @@ fun SecuritySettingRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF1E293B)),
+                .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = Color(0xFF818CF8), modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = Color(0xFF64748B), fontSize = 13.sp)
+            Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = Color(0xFF6366F1),
-                uncheckedThumbColor = Color(0xFF94A3B8),
-                uncheckedTrackColor = Color(0xFF1E293B)
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                uncheckedTrackColor = MaterialTheme.colorScheme.outline
             )
         )
     }
@@ -185,8 +189,8 @@ fun SecuritySettingRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChangePinModal(currentPin: String, onClose: () -> Unit, onPinChanged: (String) -> Unit) {
-    var step by remember { mutableStateOf(1) } // 1: Old PIN, 2: New PIN, 3: Confirm New PIN
+private fun ChangePinModal(hasPinSet: Boolean, verifyOldPin: (String) -> Boolean, onClose: () -> Unit, onPinChanged: (String) -> Unit) {
+    var step by remember { mutableStateOf(if (hasPinSet) 1 else 2) } // 1: Old PIN, 2: New PIN, 3: Confirm New PIN
     var oldPinInput by remember { mutableStateOf("") }
     var newPinInput by remember { mutableStateOf("") }
     var confirmPinInput by remember { mutableStateOf("") }
@@ -194,7 +198,7 @@ private fun ChangePinModal(currentPin: String, onClose: () -> Unit, onPinChanged
 
     ModalBottomSheet(
         onDismissRequest = onClose,
-        containerColor = Color(0xFF0A0F20)
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(
             modifier = Modifier
@@ -203,20 +207,20 @@ private fun ChangePinModal(currentPin: String, onClose: () -> Unit, onPinChanged
                 .padding(bottom = 40.dp)
         ) {
             Text(
-                "Change App PIN",
-                color = Color.White,
+                if (hasPinSet) "Change App PIN" else "Set App PIN",
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            
+
             Text(
                 when (step) {
                     1 -> "Enter your current 4-digit PIN."
                     2 -> "Enter your new 4-digit PIN."
                     else -> "Confirm your new 4-digit PIN."
                 },
-                color = Color(0xFF94A3B8),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(bottom = 24.dp)
             )
@@ -230,18 +234,18 @@ private fun ChangePinModal(currentPin: String, onClose: () -> Unit, onPinChanged
             OutlinedTextField(
                 value = currentInput,
                 onValueChange = onInputChange,
-                placeholder = { Text("****", color = Color(0xFF3A4268)) },
+                placeholder = { Text("****", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
                 ),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFF0E1527),
-                    unfocusedContainerColor = Color(0xFF0E1527),
-                    focusedBorderColor = Color(0xFF818CF8),
-                    unfocusedBorderColor = Color(0xFF1A2240),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 ),
                 shape = RoundedCornerShape(12.dp),
                 singleLine = true,
@@ -251,7 +255,7 @@ private fun ChangePinModal(currentPin: String, onClose: () -> Unit, onPinChanged
             if (errorMessage != null) {
                 Text(
                     text = errorMessage!!,
-                    color = Color(0xFFEF4444),
+                    color = MaterialTheme.colorScheme.error,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
@@ -267,7 +271,7 @@ private fun ChangePinModal(currentPin: String, onClose: () -> Unit, onPinChanged
                     }
                     when (step) {
                         1 -> {
-                            if (oldPinInput == currentPin) step = 2
+                            if (verifyOldPin(oldPinInput)) step = 2
                             else errorMessage = "Incorrect PIN."
                         }
                         2 -> step = 3
@@ -277,7 +281,7 @@ private fun ChangePinModal(currentPin: String, onClose: () -> Unit, onPinChanged
                         }
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 modifier = Modifier.fillMaxWidth().height(50.dp)
             ) { Text("Continue", fontWeight = FontWeight.Bold) }
         }

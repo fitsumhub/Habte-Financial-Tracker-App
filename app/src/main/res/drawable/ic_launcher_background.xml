@@ -3,20 +3,9 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    
-    <!-- Background Gradient -->
+
+    <!-- Flat background matching the new Habte logo artwork -->
     <path
-        android:pathData="M0,0h108v108h-108z">
-        <aapt:attr name="android:fillColor" xmlns:aapt="http://schemas.android.com/aapt">
-            <gradient
-                android:type="linear"
-                android:startX="0"
-                android:startY="0"
-                android:endX="108"
-                android:endY="108">
-                <item android:color="#070912" android:offset="0.0" />
-                <item android:color="#0B1021" android:offset="1.0" />
-            </gradient>
-        </aapt:attr>
-    </path>
+        android:pathData="M0,0h108v108h-108z"
+        android:fillColor="#FEFDFE" />
 </vector>

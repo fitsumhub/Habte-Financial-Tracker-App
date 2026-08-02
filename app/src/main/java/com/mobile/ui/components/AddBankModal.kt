@@ -14,6 +14,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -48,7 +49,7 @@ fun AddBankModal(
     var bankName by remember { mutableStateOf("") }
     var accountNumber by remember { mutableStateOf("") }
     var selectedBankId by remember { mutableStateOf<String?>(null) }
-    
+
     // Validation
     val isAccountNumberValid = accountNumber.length >= 10 && accountNumber.all { it.isDigit() }
     val isFormValid = bankName.isNotBlank() && isAccountNumberValid
@@ -60,7 +61,7 @@ fun AddBankModal(
     ModalBottomSheet(
         onDismissRequest = onClose,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color(0xFF0A0F20),
+        containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = null
     ) {
         Column(
@@ -75,7 +76,7 @@ fun AddBankModal(
                     .width(36.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFF1A2240))
+                    .background(MaterialTheme.colorScheme.outline)
                     .align(Alignment.CenterHorizontally)
             )
 
@@ -83,7 +84,7 @@ fun AddBankModal(
 
             Text(
                 text = "Add Bank Account",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -91,7 +92,7 @@ fun AddBankModal(
 
             Text(
                 text = "Select Bank",
-                color = Color(0xFF7B84A8),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(bottom = 10.dp)
@@ -109,13 +110,13 @@ fun AddBankModal(
                         modifier = Modifier
                             .width(64.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) Color(0xFF1E293B) else Color.Transparent)
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent)
                             .border(
-                                1.dp, 
-                                if (isSelected) Color(0xFF6366F1) else Color(0xFF1A2240), 
+                                1.dp,
+                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                 RoundedCornerShape(12.dp)
                             )
-                            .clickable { 
+                            .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 selectedBankId = preset.id
                                 bankName = preset.name
@@ -127,7 +128,7 @@ fun AddBankModal(
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = preset.shortName,
-                            color = if (isSelected) Color.White else Color(0xFF7B84A8),
+                            color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -139,7 +140,7 @@ fun AddBankModal(
             BankFormField(
                 label = "Bank Name (Manual or Selected)",
                 value = bankName,
-                onValueChange = { 
+                onValueChange = {
                     bankName = it
                     selectedBankId = null // clear selection if manually edited
                 },
@@ -149,9 +150,9 @@ fun AddBankModal(
             BankFormField(
                 label = "Account Number",
                 value = accountNumber,
-                onValueChange = { 
+                onValueChange = {
                     val filtered = it.filter { char -> char.isDigit() }
-                    if (filtered.length <= 16) accountNumber = filtered 
+                    if (filtered.length <= 16) accountNumber = filtered
                 },
                 placeholder = "Enter account number",
                 keyboardType = KeyboardType.Number,
@@ -181,9 +182,9 @@ fun AddBankModal(
                     .clip(RoundedCornerShape(16.dp))
                     .background(
                         if (isFormValid) {
-                            Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFF4338CA)))
+                            Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary))
                         } else {
-                            Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
+                            SolidColor(MaterialTheme.colorScheme.surfaceVariant)
                         }
                     )
 
@@ -203,9 +204,9 @@ fun AddBankModal(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Add Account", 
-                    color = if (isFormValid) Color.White else Color(0xFF475569), 
-                    fontSize = 15.sp, 
+                    text = "Add Account",
+                    color = if (isFormValid) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
 
@@ -217,7 +218,7 @@ fun AddBankModal(
                 onClick = onClose,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Cancel", color = Color(0xFF7B84A8), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -229,19 +230,14 @@ private fun BankLogoSmall(text: String, isSelected: Boolean, logoResId: Int?, do
         modifier = Modifier
             .size(32.dp)
             .clip(CircleShape)
-            .background(if (logoResId != null || domain != null) Color.White else if (isSelected) Color(0xFF6366F1) else Color(0xFF1A2240)),
+            .background(
+                if (logoResId != null || domain != null) Color.White
+                else if (isSelected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant
+            ),
         contentAlignment = Alignment.Center
     ) {
-        if (domain != null) {
-            AsyncImage(
-                model = "https://www.google.com/s2/favicons?domain=${domain}&sz=128",
-                contentDescription = text,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(if (text == "DAS") 4.dp else 0.dp),
-                contentScale = ContentScale.Fit
-            )
-        } else if (logoResId != null) {
+        if (logoResId != null) {
             Image(
                 painter = painterResource(id = logoResId),
                 contentDescription = text,
@@ -250,8 +246,22 @@ private fun BankLogoSmall(text: String, isSelected: Boolean, logoResId: Int?, do
                     .padding(if (text == "DAS") 4.dp else 0.dp),
                 contentScale = ContentScale.Fit
             )
+        } else if (domain != null) {
+            AsyncImage(
+                model = "https://www.google.com/s2/favicons?domain=${domain}&sz=128",
+                contentDescription = text,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(if (text == "DAS") 4.dp else 0.dp),
+                contentScale = ContentScale.Fit
+            )
         } else {
-            Text(text, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+            Text(
+                text,
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
         }
     }
 }
@@ -271,7 +281,7 @@ private fun BankFormField(
     Column(modifier = Modifier.padding(bottom = 14.dp)) {
         Text(
             text = label,
-            color = Color(0xFF7B84A8),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(bottom = 6.dp)
@@ -279,23 +289,23 @@ private fun BankFormField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text(placeholder, color = Color(0xFF3A4268)) },
+            placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color(0xFF0E1527),
-                unfocusedContainerColor = Color(0xFF0E1527),
-                focusedBorderColor = Color(0xFF6366F1),
-                unfocusedBorderColor = Color(0xFF1A2240),
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                cursorColor = Color(0xFF6366F1),
-                errorBorderColor = Color(0xFFEF4444)
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                cursorColor = MaterialTheme.colorScheme.primary,
+                errorBorderColor = Color(0xFFDC2626)
             ),
             shape = RoundedCornerShape(14.dp),
             isError = isError,
             supportingText = if (isError) {
-                { Text(errorText, color = Color(0xFFEF4444), fontSize = 11.sp) }
+                { Text(errorText, color = Color(0xFFDC2626), fontSize = 11.sp) }
             } else null,
             modifier = Modifier.fillMaxWidth()
         )

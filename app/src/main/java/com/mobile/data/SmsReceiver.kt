@@ -17,6 +17,7 @@ class SmsReceiver : BroadcastReceiver() {
                 val parsedTx = SmsParser.parseMessage(address, body, timestamp)
                 if (parsedTx != null) {
                     FinanceRepository.addTransaction(parsedTx)
+                    TransactionNotifier.notify(context, parsedTx)
                 }
             }
         }

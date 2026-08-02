@@ -1,4 +1,4 @@
-package com.mobile.ui.screens
+﻿package com.mobile.ui.screens
 
 import android.graphics.Color.parseColor
 import android.widget.Toast
@@ -41,10 +41,13 @@ fun ProfileScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val banks by FinanceRepository.banks.collectAsState()
     val transactions by FinanceRepository.transactions.collectAsState()
+    val savedName by SettingsRepository.userName.collectAsState()
+    val savedEmail by SettingsRepository.userEmail.collectAsState()
 
     var isEditing by remember { mutableStateOf(false) }
-    var name by remember { mutableStateOf("Account Holder") }
-    var email by remember { mutableStateOf("Fitsumenunu21@gmail.com") }
+    var name by remember(savedName) { mutableStateOf(savedName) }
+    var email by remember(savedEmail) { mutableStateOf(savedEmail) }
+    var showSignOutConfirm by remember { mutableStateOf(false) }
 
     val totalAccounts = banks.sumOf { it.accounts.size }
     val totalBalance = Data.getTotalBalance(banks)
@@ -52,7 +55,7 @@ fun ProfileScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF070912))
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
     ) {
         // Header
@@ -66,11 +69,11 @@ fun ProfileScreen(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Text(
                     text = "Profile",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -90,15 +93,8 @@ fun ProfileScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 28.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color(0xFF6366F1),
-                                Color(0xFF4F46E5)
-                            )
-                        )
-                    )
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.primary)
                     .padding(24.dp)
             ) {
                 Row(
@@ -109,14 +105,7 @@ fun ProfileScreen(onBack: () -> Unit) {
                         modifier = Modifier
                             .size(64.dp)
                             .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        Color(0x33FFFFFF),
-                                        Color(0x00FFFFFF)
-                                    )
-                                )
-                            ),
+                            .background(Color(0x26FFFFFF)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -134,7 +123,7 @@ fun ProfileScreen(onBack: () -> Unit) {
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = email,
+                            text = email.ifBlank { "Add your email" },
                             color = Color(0xB3FFFFFF),
                             fontSize = 14.sp,
                             modifier = Modifier.padding(top = 4.dp)
@@ -157,26 +146,26 @@ fun ProfileScreen(onBack: () -> Unit) {
                         .fillMaxWidth()
                         .padding(bottom = 24.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFF0E1527))
-                        .border(1.dp, Color(0xFF1A2240), RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
                         .padding(20.dp)
                 ) {
                     Column {
-                        Text("Edit Profile", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
+                        Text("Edit Profile", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
 
-                        Text("Display Name", color = Color(0xFF7B84A8), fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 6.dp))
+                        Text("Display Name", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 6.dp))
                         TextField(
                             value = name,
                             onValueChange = { name = it },
                             modifier = Modifier.fillMaxWidth(),
                             colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFF161E36),
-                                unfocusedContainerColor = Color(0xFF161E36),
-                                focusedIndicatorColor = Color(0xFF6366F1),
-                                unfocusedIndicatorColor = Color(0xFF1A2240),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                cursorColor = Color(0xFF6366F1)
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                cursorColor = MaterialTheme.colorScheme.primary
                             ),
                             shape = RoundedCornerShape(12.dp),
                             singleLine = true
@@ -184,19 +173,19 @@ fun ProfileScreen(onBack: () -> Unit) {
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Text("Email Address", color = Color(0xFF7B84A8), fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 6.dp))
+                        Text("Email Address", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 6.dp))
                         TextField(
                             value = email,
                             onValueChange = { email = it },
                             modifier = Modifier.fillMaxWidth(),
                             colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFF161E36),
-                                unfocusedContainerColor = Color(0xFF161E36),
-                                focusedIndicatorColor = Color(0xFF6366F1),
-                                unfocusedIndicatorColor = Color(0xFF1A2240),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                cursorColor = Color(0xFF6366F1)
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                cursorColor = MaterialTheme.colorScheme.primary
                             ),
                             shape = RoundedCornerShape(12.dp),
                             singleLine = true
@@ -209,8 +198,10 @@ fun ProfileScreen(onBack: () -> Unit) {
                                 .fillMaxWidth()
                                 .height(48.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFF4338CA))))
+                                .background(MaterialTheme.colorScheme.primary)
                                 .clickable {
+                                    SettingsRepository.setUserName(name)
+                                    SettingsRepository.setUserEmail(email)
                                     isEditing = false
                                     Toast.makeText(context, "Profile saved!", Toast.LENGTH_SHORT).show()
                                 },
@@ -225,7 +216,7 @@ fun ProfileScreen(onBack: () -> Unit) {
             // Account Statistics
             Text(
                 "Account Overview",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -240,7 +231,7 @@ fun ProfileScreen(onBack: () -> Unit) {
                     icon = Icons.Default.AccountBalance,
                     label = "Banks",
                     value = "${banks.size}",
-                    color = Color(0xFF6366F1)
+                    color = MaterialTheme.colorScheme.primary
                 )
                 ProfileStatCard(
                     modifier = Modifier.weight(1f),
@@ -265,8 +256,8 @@ fun ProfileScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF0E1527))
-                    .border(1.dp, Color(0xFF1A2240), RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(18.dp))
                     .padding(20.dp)
             ) {
                 Row(
@@ -275,10 +266,10 @@ fun ProfileScreen(onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Total Net Worth", color = Color(0xFF7B84A8), fontSize = 12.sp)
+                        Text("Total Net Worth", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         Text(
                             "${Data.formatBalance(totalBalance)} ETB",
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(top = 4.dp)
@@ -288,10 +279,10 @@ fun ProfileScreen(onBack: () -> Unit) {
                         modifier = Modifier
                             .size(48.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFF064E3B).copy(alpha = 0.3f)),
+                            .background(Color(0xFF059669).copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Savings, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.Savings, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(24.dp))
                     }
                 }
             }
@@ -303,20 +294,44 @@ fun ProfileScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF7F1D1D).copy(alpha = 0.15f))
-                    .border(1.dp, Color(0xFF7F1D1D).copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                    .clickable {
-                        Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
-                        onBack()
-                    }
+                    .background(Color(0xFFDC2626).copy(alpha = 0.08f))
+                    .border(1.dp, Color(0xFFDC2626).copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                    .clickable { showSignOutConfirm = true }
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
-                    Text("Sign Out", color = Color(0xFFEF4444), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(20.dp))
+                    Text("Sign Out", color = Color(0xFFDC2626), fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
+        }
+
+        if (showSignOutConfirm) {
+            AlertDialog(
+                onDismissRequest = { showSignOutConfirm = false },
+                title = { Text("Sign Out?", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+                text = { Text("Habte stores your data only on this device — signing out permanently deletes all synced transactions, accounts, and budgets. This can't be undone.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                containerColor = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(24.dp),
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showSignOutConfirm = false
+                            FinanceRepository.clearAll()
+                            Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
+                            onBack()
+                        }
+                    ) {
+                        Text("Confirm Sign Out", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSignOutConfirm = false }) {
+                        Text("Cancel", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            )
         }
     }
 }
@@ -332,8 +347,8 @@ private fun ProfileStatCard(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF0E1527))
-            .border(1.dp, Color(0xFF1A2240), RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(18.dp))
             .padding(16.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
@@ -341,14 +356,14 @@ private fun ProfileStatCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(color.copy(alpha = 0.15f)),
+                    .background(color.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
             }
             Spacer(modifier = Modifier.height(10.dp))
-            Text(value, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(label, color = Color(0xFF64748B), fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+            Text(value, color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
         }
     }
 }

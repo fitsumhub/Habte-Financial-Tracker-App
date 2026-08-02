@@ -106,8 +106,8 @@ class DataTest {
     // ── Preset Banks Data Integrity ──────────────────────────────────────
 
     @Test
-    fun `PRESET_BANKS contains 16 banks`() {
-        assertEquals(16, Data.PRESET_BANKS.size)
+    fun `PRESET_BANKS mirrors the institution catalog size`() {
+        assertEquals(InstitutionCatalog.ALL.size, Data.PRESET_BANKS.size)
     }
 
     @Test
@@ -157,11 +157,21 @@ class DataTest {
     // ── Account Types ────────────────────────────────────────────────────
 
     @Test
-    fun `AccountType enum has three values`() {
-        assertEquals(3, AccountType.values().size)
+    fun `AccountType enum has thirteen values`() {
+        assertEquals(13, AccountType.values().size)
         assertNotNull(AccountType.SAVINGS)
         assertNotNull(AccountType.CURRENT)
-        assertNotNull(AccountType.MOBILE)
+        assertNotNull(AccountType.SALARY)
+        assertNotNull(AccountType.BUSINESS)
+        assertNotNull(AccountType.MERCHANT)
+        assertNotNull(AccountType.YOUTH)
+        assertNotNull(AccountType.STUDENT)
+        assertNotNull(AccountType.FIXED_DEPOSIT)
+        assertNotNull(AccountType.MOBILE_WALLET)
+        assertNotNull(AccountType.DIGITAL_WALLET)
+        assertNotNull(AccountType.LOAN)
+        assertNotNull(AccountType.INVESTMENT)
+        assertNotNull(AccountType.FOREIGN_CURRENCY)
     }
 
     // ── BANKS and MOCK data are initially empty ──────────────────────────

@@ -1,4 +1,4 @@
-package com.mobile.ui.navigation
+﻿package com.mobile.ui.navigation
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -44,139 +45,149 @@ private val NAV_ITEMS = listOf(
 @Composable
 fun AppNavigation() {
     var currentRoute by remember { mutableStateOf("home") }
+    var previousRoute by remember { mutableStateOf("home") }
+
+    fun navigateTo(route: String) {
+        previousRoute = currentRoute
+        currentRoute = route
+    }
+
+    // A tapped transaction notification always resolves on the Home tab (where
+    // TransactionDetailSheet lives) — jump there if the user was elsewhere.
+    val pendingTransactionId by com.mobile.data.FinanceRepository.pendingTransactionId.collectAsState()
+    LaunchedEffect(pendingTransactionId) {
+        if (pendingTransactionId != null && currentRoute != "home") {
+            navigateTo("home")
+        }
+    }
 
     // Content transitions handled in Scaffold
 
 
 
     Scaffold(
-        containerColor = Color(0xFF070912),
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            if (currentRoute != "ai_chat") {
-                Box(
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 14.dp),
-                    contentAlignment = Alignment.BottomCenter
+                        .height(64.dp)
+                        .shadow(8.dp, RoundedCornerShape(32.dp), clip = false)
+                        .clip(RoundedCornerShape(32.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(32.dp))
+                        .padding(horizontal = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(80.dp) // Slightly taller for labels
-                            .graphicsLayer {
-                                shadowElevation = 20f
-                                shape = RoundedCornerShape(24.dp)
-                                clip = false
-                            }
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(Color(0xFF0E1527))
-                            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp))
-                            .padding(horizontal = 8.dp)
-                    ) {
+                    NAV_ITEMS.forEach { item ->
+                        val selected = currentRoute == item.route
 
-                        // We will use a simpler approach for sliding since weight is dynamic.
+                        val unselectedTint = MaterialTheme.colorScheme.onSurfaceVariant
+                        val selectedBg = MaterialTheme.colorScheme.primary
+                        val iconTint by animateColorAsState(
+                            if (selected) Color.White else unselectedTint,
+                            label = "iconTint"
+                        )
 
-                        // Instead of a separate indicator box, we'll stick to the per-item background but make it smoother.
-                        
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalArrangement = Arrangement.SpaceAround,
-                            verticalAlignment = Alignment.CenterVertically
+                        val boxBgColor by animateColorAsState(
+                            if (selected) selectedBg else Color.Transparent,
+                            label = "boxBgColor"
+                        )
+
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val scale by animateFloatAsState(
+                            targetValue = if (isPressed) 0.9f else 1.0f,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                            label = "buttonScale"
+                        )
+
+                        Box(
+                            // BUG FIX: weight(1f) forced every item — selected or not — into
+                            // an equal fixed-width slice of the row, so the label that appears
+                            // on the selected item (e.g. "Analytics", "Settings") had nowhere to
+                            // expand into and got clipped mid-word ("Ana", "Ho"). widthIn(min)
+                            // keeps unselected items at a comfortable tap-target size while
+                            // letting the selected item grow past it to fit its full label;
+                            // SpaceAround on the parent Row still distributes the slack evenly.
+                            modifier = Modifier
+                                .widthIn(min = 56.dp)
+                                .fillMaxHeight()
+                                .graphicsLayer {
+                                    scaleX = scale
+                                    scaleY = scale
+                                }
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    onClick = { currentRoute = item.route }
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
-                            NAV_ITEMS.forEach { item ->
-                                val selected = currentRoute == item.route
-                                
-                                val iconTint by animateColorAsState(
-                                    if (selected) Color.White else Color(0xFF64748B),
-                                    label = "iconTint"
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(boxBgColor)
+                                    .padding(horizontal = if (selected) 14.dp else 10.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.label,
+                                    tint = iconTint,
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                
-                                val boxBgColor by animateColorAsState(
-                                    if (selected) Color(0xFF6366F1) else Color.Transparent,
-                                    label = "boxBgColor"
-                                )
-
-                                val interactionSource = remember { MutableInteractionSource() }
-                                val isPressed by interactionSource.collectIsPressedAsState()
-                                val scale by animateFloatAsState(
-                                    targetValue = if (isPressed) 0.9f else 1.0f,
-                                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                                    label = "buttonScale"
-                                )
-
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                        .graphicsLayer {
-                                            scaleX = scale
-                                            scaleY = scale
-                                        }
-                                        .clickable(
-                                            interactionSource = interactionSource,
-                                            indication = null,
-                                            onClick = { currentRoute = item.route }
-                                        ),
-                                    contentAlignment = Alignment.Center
+                                AnimatedVisibility(
+                                    visible = selected,
+                                    enter = fadeIn() + expandHorizontally(),
+                                    exit = fadeOut() + shrinkHorizontally()
                                 ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(if (selected) 44.dp else 40.dp)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(boxBgColor),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = if (selected) item.icon else item.icon, // Could use outlined variant here
-                                                contentDescription = item.label,
-                                                tint = iconTint,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        }
-                                        
-                                        AnimatedVisibility(
-                                            visible = selected,
-                                            enter = fadeIn() + expandVertically(),
-                                            exit = fadeOut() + shrinkVertically()
-                                        ) {
-                                            Text(
-                                                text = item.label,
-                                                color = Color.White,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(top = 4.dp)
-                                            )
-                                        }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = item.label,
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
                                     }
                                 }
                             }
                         }
                     }
-
                 }
             }
-
         }
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
             when (currentRoute) {
-                "home"      -> HomeScreen(onNavigateToAi = { currentRoute = "ai_chat" }, onNavigateToProfile = { currentRoute = "profile" }, onNavigateToTransactionHistory = { currentRoute = "transaction_history" })
-                "analytics" -> AnalyticsScreen(onNavigateToAi = { currentRoute = "ai_chat" })
+                "home"      -> HomeScreen(
+                    onNavigateToProfile = { navigateTo("profile") },
+                    onNavigateToTransactionHistory = { navigateTo("transaction_history") },
+                    onNavigateToAlerts = { navigateTo("alerts") }
+                )
+                "analytics" -> AnalyticsScreen()
                 "budget"    -> BudgetScreen()
-                "tools"     -> ToolsScreen(onNavigate = { currentRoute = it })
-                "settings"  -> SettingsScreen()
-                "ai_chat"   -> AiChatScreen(onBack = { currentRoute = "home" })
-                "profile"   -> ProfileScreen(onBack = { currentRoute = "home" })
-                "transaction_history" -> TransactionHistoryScreen(onBack = { currentRoute = "home" })
-                "alerts"    -> AlertsScreen(onBack = { currentRoute = "tools" })
-                "security"  -> SecurityScreen(onBack = { currentRoute = "tools" })
-                "export_data" -> ExportDataScreen(onBack = { currentRoute = "tools" })
-                "support"   -> SupportScreen(onBack = { currentRoute = "tools" })
+                "tools"     -> ToolsScreen(onNavigate = { navigateTo(it) })
+                "settings"  -> SettingsScreen(onNavigate = { navigateTo(it) })
+                "profile"   -> ProfileScreen(onBack = { currentRoute = previousRoute })
+                "transaction_history" -> TransactionHistoryScreen(onBack = { currentRoute = previousRoute })
+                "alerts"    -> AlertsScreen(onBack = { currentRoute = previousRoute })
+                "security"  -> SecurityScreen(onBack = { currentRoute = previousRoute })
+                "payment_reminders" -> PaymentRemindersScreen(onBack = { currentRoute = previousRoute })
+                "export_data" -> ExportDataScreen(onBack = { currentRoute = previousRoute })
+                "net_worth" -> NetWorthScreen(onBack = { currentRoute = previousRoute })
+                "notification_capture" -> NotificationCaptureScreen(onBack = { currentRoute = previousRoute })
+                "achievement_certificates" -> AchievementCertificatesScreen(onBack = { currentRoute = previousRoute })
+                "support"   -> SupportScreen(onBack = { currentRoute = previousRoute })
             }
         }
     }

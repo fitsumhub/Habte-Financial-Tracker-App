@@ -7,39 +7,58 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 
-// ── Colour tokens (mirrors constants/colors.ts) ──────────────────────────────
-private val Background   = Color(0xFF070912)
-private val Card         = Color(0xFF0E1527)
+// ── Colour tokens — dark variant (kept for system/manual dark mode) ──────────
+private val Background   = Color(0xFF0B0B0F)
+private val Card         = Color(0xFF16161B)
 private val Primary      = Color(0xFF6366F1)
-private val PrimaryDark  = Color(0xFF4338CA)
-private val TextColor    = Color(0xFFF0F2FF)
-private val TextMuted    = Color(0xFF7B84A8)
+private val PrimaryDark  = Color(0xFF4F46E5)
+private val TextColor    = Color(0xFFF5F5F7)
+private val TextMuted    = Color(0xFF9494A0)
 private val Green        = Color(0xFF10B981)
 private val Red          = Color(0xFFEF4444)
+private val DarkBorder    = Color(0xFF2C2C34)
 
 private val DarkColorScheme = darkColorScheme(
     primary          = Primary,
     onPrimary        = Color.White,
     primaryContainer = PrimaryDark,
-    secondary        = Color(0xFF7C3AED),
+    secondary        = PrimaryDark,
     background       = Background,
     onBackground     = TextColor,
     surface          = Card,
     onSurface        = TextColor,
-    surfaceVariant   = Color(0xFF1A2240),
+    surfaceVariant   = Color(0xFF26262C),
     onSurfaceVariant = TextMuted,
+    outline          = DarkBorder,
     error            = Red,
     onError          = Color.White
 )
 
+// ── Colour tokens — light corporate palette (Wise/Chase-style default) ───────
+private val LightBg          = Color(0xFFF6F7F9)
+private val LightSurface     = Color(0xFFFFFFFF)
+private val LightBorder      = Color(0xFFE7EAEE)
+private val LightPrimary     = Color(0xFF4F46E5)
+private val LightTextColor   = Color(0xFF10131A)
+private val LightTextMuted   = Color(0xFF667085)
+private val LightGreen       = Color(0xFF059669)
+private val LightRed         = Color(0xFFDC2626)
+
 private val LightColorScheme = lightColorScheme(
-    primary          = Primary,
+    primary          = LightPrimary,
     onPrimary        = Color.White,
-    primaryContainer = PrimaryDark,
-    background       = Color(0xFFF5F5F5),
-    onBackground     = Color(0xFF111827),
-    surface          = Color.White,
-    onSurface        = Color(0xFF111827)
+    primaryContainer = Color(0xFFEEF0FF),
+    onPrimaryContainer = LightPrimary,
+    secondary        = Color(0xFF6366F1),
+    background       = LightBg,
+    onBackground     = LightTextColor,
+    surface          = LightSurface,
+    onSurface        = LightTextColor,
+    surfaceVariant   = Color(0xFFF1F4F8),
+    onSurfaceVariant = LightTextMuted,
+    outline          = LightBorder,
+    error            = LightRed,
+    onError          = Color.White
 )
 
 /**
@@ -51,7 +70,7 @@ private val LightColorScheme = lightColorScheme(
 fun AppTheme(
     content: @Composable () -> Unit
 ) {
-    val themeMode by com.mobile.data.SettingsRepository.theme.collectAsState(initial = "Dark")
+    val themeMode by com.mobile.data.SettingsRepository.theme.collectAsState(initial = "Light")
     val systemDark = isSystemInDarkTheme()
     
     val darkTheme = when (themeMode) {

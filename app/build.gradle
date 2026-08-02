@@ -1,6 +1,18 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'com.google.devtools.ksp'
+}
+
+// Release signing secrets live outside version control (see .gitignore) in a
+// keystore.properties file at the repo root. Loaded here rather than committed so the
+// signing key/passwords never end up in git history — see keystore.properties.example
+// for the format anyone re-creating this file needs to follow.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+def hasReleaseSigning = keystorePropertiesFile.exists()
+if (hasReleaseSigning) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -16,10 +28,26 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Falls back to unsigned on a machine without keystore.properties (e.g. a
+            // fresh clone or CI without the secret) instead of failing the build outright.
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
@@ -69,6 +97,18 @@ android {
 
     // Window insets (statusBarsPadding, imePadding)
     implementation 'androidx.compose.foundation:foundation'
+
+    // Room — local persistence for transactions/banks/accounts/budgets
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    ksp 'androidx.room:room-compiler:2.6.1'
+
+    // Google Mobile Ads (AdMob) — banner/interstitial/rewarded/native ad formats.
+    // See com.mobile.ads.AdMobConfig for the (currently test-only) ad unit IDs.
+    implementation 'com.google.android.gms:play-services-ads:23.6.0'
+    // User Messaging Platform — gathers GDPR/CCPA ad consent before any ad request, a
+    // required step (not just an EEA/UK nicety) for a real AdMob release. See AdMobConsent.
+    implementation 'com.google.android.ump:user-messaging-platform:2.2.0'
 
     // Testing
     testImplementation 'junit:junit:4.13.2'

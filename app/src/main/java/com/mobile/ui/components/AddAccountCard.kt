@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -47,8 +48,8 @@ fun AddAccountCard(
                 scaleY = scale
             }
             .clip(RoundedCornerShape(22.dp))
-            .background(Color(0xFF0E1527))
-            .border(1.dp, Color(0xFF1A2240), RoundedCornerShape(22.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(22.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null, // Custom scale handled
@@ -65,20 +66,20 @@ fun AddAccountCard(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(Color(0x266366F1))
-                    .border(1.dp, Color(0x4D6366F1), CircleShape),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Add Account",
-                    tint = Color(0xFF818CF8),
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp)
                 )
             }
             Text(
                 text = "Add Account",
-                color = Color(0xFF818CF8),
+                color = MaterialTheme.colorScheme.primary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold
             )

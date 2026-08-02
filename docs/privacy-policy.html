@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Habte Financial Tracker</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    line-height: 1.6;
+    color: #1a1a2e;
+    background: #f6f7f9;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e6e6f0; background: #0b0b0f; }
+    table { background: #16161b !important; }
+    th { background: #1f1f27 !important; }
+    td, th { border-color: #2c2c34 !important; }
+    a { color: #a5a8ff; }
+  }
+  h1 { font-size: 1.9rem; margin-bottom: 4px; }
+  .updated { color: #667085; font-size: 0.9rem; margin-bottom: 32px; }
+  h2 { margin-top: 2.2em; font-size: 1.25rem; border-bottom: 1px solid #e7eaee; padding-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 10px 12px; border: 1px solid #e7eaee; vertical-align: top; }
+  th { background: #f1f4f8; }
+  a { color: #4f46e5; }
+  code { background: rgba(127,127,127,0.15); padding: 2px 5px; border-radius: 4px; font-size: 0.9em; }
+  .callout { background: rgba(79,70,229,0.08); border-left: 3px solid #4f46e5; padding: 12px 16px; border-radius: 6px; margin: 1em 0; }
+</style>
+</head>
+<body>
+
+<h1>Privacy Policy — Habte Financial Tracker</h1>
+<p class="updated">Last updated: 2026-07-30</p>
+
+<p>Habte (ሀብቴ) ("the app", "we", "our") is developed for the Ethiopian market to help users track their finances automatically from bank and Telebirr SMS notifications. This policy explains what data the app accesses, what stays on your device, and what — if anything — is shared with third parties.</p>
+
+<h2>1. Data We Access and Why</h2>
+<table>
+<tr><th>Data</th><th>Why we need it</th><th>Where it goes</th></tr>
+<tr>
+  <td>SMS messages (<code>READ_SMS</code>, <code>RECEIVE_SMS</code>)</td>
+  <td>To detect and parse transaction notifications from supported banks and Telebirr, so you don't have to enter transactions manually. Only messages matching a known bank/Telebirr sender pattern are parsed into a transaction; everything else is ignored and never stored.</td>
+  <td><strong>Stays on your device only.</strong> Parsed transactions are stored in a local database. Raw SMS content is never uploaded, copied, or transmitted anywhere.</td>
+</tr>
+<tr>
+  <td>Biometric data (fingerprint/face, via <code>USE_BIOMETRIC</code>)</td>
+  <td>To lock the app behind your device's existing biometric authentication.</td>
+  <td>Handled entirely by Android's own Biometric API. The app never receives, stores, or has access to your biometric data itself — only a yes/no authentication result.</td>
+</tr>
+<tr>
+  <td>App PIN</td>
+  <td>An alternative/backup way to lock the app.</td>
+  <td>Stored on-device only, as a salted PBKDF2 hash — never in plain text, never transmitted.</td>
+</tr>
+<tr>
+  <td>Account balances, transaction history, budgets, payment reminders</td>
+  <td>Core app functionality — showing you your financial picture and reminding you about upcoming bills.</td>
+  <td><strong>Stays on your device only</strong>, in a local database.</td>
+</tr>
+<tr>
+  <td>Optional profile name/email you enter</td>
+  <td>Personalizing the app and labeling exported statements.</td>
+  <td><strong>Stays on your device only.</strong> Not transmitted anywhere; no account system or backend exists to send it to.</td>
+</tr>
+<tr>
+  <td>Crash reports</td>
+  <td>If the app crashes, the error is saved locally so the app can show you a recovery screen on next launch instead of silently failing again.</td>
+  <td><strong>Stays on your device only.</strong> Not transmitted to us or anyone else.</td>
+</tr>
+</table>
+
+<h2>2. What Never Leaves Your Device</h2>
+<ul>
+  <li>Your SMS content and parsed transactions</li>
+  <li>Your account, bank, and balance data</li>
+  <li>Your budgets and payment reminders</li>
+  <li>Your PIN, biometric authentication result, and any profile info you enter</li>
+  <li>Crash reports</li>
+</ul>
+<div class="callout"><strong>There is no cloud sync, no account/login system, and no backend server operated by us that any of this data is sent to.</strong></div>
+
+<h2>3. Third-Party Services</h2>
+<p>The app uses two third-party services, both of which involve limited network requests:</p>
+
+<h3>Google AdMob (advertising)</h3>
+<p>The app displays ads via Google's AdMob SDK (banner, interstitial, rewarded, and native ad formats) to support free use of the app. AdMob may collect an advertising identifier and request metadata (device/app information, approximate location derived from IP, etc.) to serve and measure ads, per <a href="https://policies.google.com/technologies/ads">Google's advertising and measurement policies</a> and <a href="https://policies.google.com/privacy">Google's Privacy Policy</a>. <strong>No SMS content, transaction data, or other financial data collected by the app is ever shared with AdMob or any advertiser</strong> — the ad SDK operates independently and has no access to that data.</p>
+<p>You can go ad-free for 24 hours at a time from Settings by watching a short rewarded ad.</p>
+
+<h3>Google Favicon Service (bank logos)</h3>
+<p>To display a bank's logo, the app requests an icon from Google's public favicon service (<code>google.com/s2/favicons</code>) using that bank's domain name. This request contains only the bank's domain — never any of your personal or financial data.</p>
+
+<h2>4. Data Retention &amp; Deletion</h2>
+<ul>
+  <li>Your data persists locally on your device for as long as the app is installed.</li>
+  <li>You can clear all locally stored financial data at any time via <strong>Settings → Sign Out</strong>.</li>
+  <li>Uninstalling the app deletes its local database and all data with it, per standard Android app-storage behavior.</li>
+</ul>
+
+<h2>5. Children's Privacy</h2>
+<p>Habte is a personal-finance tool intended for general audiences and is not directed at children under 13. We do not knowingly collect data from children.</p>
+
+<h2>6. Changes to This Policy</h2>
+<p>If this policy changes, the "Last updated" date above will be revised. Continued use of the app after a change constitutes acceptance of the updated policy.</p>
+
+<h2>7. Contact</h2>
+<p>Questions about this policy or your data can be sent to: <a href="mailto:fitsumenunu21@gmail.com">fitsumenunu21@gmail.com</a></p>
+
+</body>
+</html>
