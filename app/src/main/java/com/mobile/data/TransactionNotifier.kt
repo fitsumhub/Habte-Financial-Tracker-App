@@ -32,9 +32,11 @@ object TransactionNotifier {
             NotificationChannel(
                 CHANNEL_ID,
                 "Transaction Alerts",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "New transactions detected from bank and wallet SMS"
+                enableVibration(true)
+                setShowBadge(true)
             }
         )
     }
@@ -81,13 +83,14 @@ object TransactionNotifier {
             )
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .build()
 
         try {
             NotificationManagerCompat.from(context).notify(transaction.id.hashCode(), notification)
-        } catch (e: SecurityException) {
-            // Notification permission not granted — silently skip, transaction is still recorded.
+        } catch (t: Throwable) {
+            android.util.Log.w("TransactionNotifier", "Failed to post transaction notification", t)
         }
     }
 }

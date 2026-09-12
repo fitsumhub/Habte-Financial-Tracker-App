@@ -1,6 +1,7 @@
 package com.mobile.data
 
 import java.text.DecimalFormat
+import java.util.Locale
 import androidx.compose.runtime.Stable
 
 // ── Account types — the full set of accounts a financial institution may offer.
@@ -94,8 +95,8 @@ object Data {
 
 
     // ── Utility functions (mirrors data.ts) ───────────────────────────────────
-    fun getTotalBalance(banks: List<Bank>): Double =
-        banks.sumOf { bank -> bank.accounts.sumOf { it.balance } }
+    fun getTotalBalance(banks: List<Bank>, hiddenAccountIds: Set<String> = emptySet()): Double =
+        banks.sumOf { bank -> bank.accounts.filter { it.id !in hiddenAccountIds }.sumOf { it.balance } }
 
     // DecimalFormat isn't thread-safe, and this is called from both Compose UI
     // (every transaction row) and background notifiers — a ThreadLocal caches one
@@ -103,10 +104,12 @@ object Data {
     private val balanceFormat = ThreadLocal.withInitial { DecimalFormat("#,##0.00") }
 
     fun formatBalance(amount: Double, short: Boolean = false): String {
-        if (short && amount >= 1000) return String.format("%.1fk", amount / 1000)
-        return balanceFormat.get()!!.format(amount)
+        if (amount.isNaN() || amount.isInfinite()) return "0.00"
+        if (short && amount >= 1000) return String.format(Locale.US, "%.1fk", amount / 1000)
+        val formatter = balanceFormat.get() ?: DecimalFormat("#,##0.00")
+        return formatter.format(amount)
     }
 
-    fun getBankTotal(bank: Bank): Double =
-        bank.accounts.sumOf { it.balance }
+    fun getBankTotal(bank: Bank, hiddenAccountIds: Set<String> = emptySet()): Double =
+        bank.accounts.filter { it.id !in hiddenAccountIds }.sumOf { it.balance }
 }

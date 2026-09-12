@@ -24,7 +24,7 @@ object CrashReporter {
                 appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                     .edit()
                     .putString(KEY_LAST_CRASH, throwable.stackTraceToString())
-                    .apply()
+                    .commit()
             }
             previousHandler?.uncaughtException(thread, throwable)
         }

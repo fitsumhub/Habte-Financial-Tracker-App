@@ -37,6 +37,10 @@ object SettingsRepository {
     private val _calendarSystem = MutableStateFlow("Gregorian")
     val calendarSystem: StateFlow<String> = _calendarSystem.asStateFlow()
 
+    // Default financial overview period used in profile/dashboard reporting.
+    private val _financialOverviewPeriod = MutableStateFlow("Monthly")
+    val financialOverviewPeriod: StateFlow<String> = _financialOverviewPeriod.asStateFlow()
+
     private val _theme = MutableStateFlow("Light")
     val theme: StateFlow<String> = _theme.asStateFlow()
 
@@ -72,6 +76,12 @@ object SettingsRepository {
     private val _userEmail = MutableStateFlow("")
     val userEmail: StateFlow<String> = _userEmail.asStateFlow()
 
+    private val _profilePhotoUri = MutableStateFlow<String?>(null)
+    val profilePhotoUri: StateFlow<String?> = _profilePhotoUri.asStateFlow()
+
+    private val _lastSmsSyncTimestamp = MutableStateFlow(0L)
+    val lastSmsSyncTimestamp: StateFlow<Long> = _lastSmsSyncTimestamp.asStateFlow()
+
     // Zero or more of: "Every 12 Hours", "Daily", "Weekly", "Every 15 Days", "Monthly" —
     // each selected frequency gets its own independent recurring summary notification.
     private val _summaryFrequencies = MutableStateFlow(setOf("Daily"))
@@ -82,32 +92,113 @@ object SettingsRepository {
     private val _adFreeUntilMillis = MutableStateFlow(0L)
     val adFreeUntilMillis: StateFlow<Long> = _adFreeUntilMillis.asStateFlow()
 
+    private val _widgetsEnabled = MutableStateFlow(true)
+    val widgetsEnabled: StateFlow<Boolean> = _widgetsEnabled.asStateFlow()
+
+    private val _preferredWidgetStyle = MutableStateFlow("Daily Digest")
+    val preferredWidgetStyle: StateFlow<String> = _preferredWidgetStyle.asStateFlow()
+
+    private val _hiddenAccountIds = MutableStateFlow<Set<String>>(emptySet())
+    val hiddenAccountIds: StateFlow<Set<String>> = _hiddenAccountIds.asStateFlow()
+
+    private val _profileAvatarRing = MutableStateFlow("Emerald")
+    val profileAvatarRing: StateFlow<String> = _profileAvatarRing.asStateFlow()
+
     /** True while an ad-free grant from a watched rewarded ad is still active. */
+    private var applicationContext: Context? = null
+
     fun isAdFreeActive(): Boolean = System.currentTimeMillis() < _adFreeUntilMillis.value
 
+    @Synchronized
     fun init(context: Context) {
-        prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        _biometricEnabled.value = prefs.getBoolean("biometric", true)
-        _autoHideBalances.value = prefs.getBoolean("auto_hide", false)
-        _privacyMode.value = prefs.getBoolean("privacy_mode", false)
-        _notificationsEnabled.value = prefs.getBoolean("notifications", true)
-        _smsAlerts.value = prefs.getBoolean("sms_alerts", true)
-        _dateFormat.value = prefs.getString("date_format", "MM/DD/YYYY") ?: "MM/DD/YYYY"
-        _calendarSystem.value = prefs.getString("calendar_system", "Gregorian") ?: "Gregorian"
-        _theme.value = prefs.getString("theme", "Light") ?: "Light"
-        _hasPinSet.value = prefs.contains("pin_hash")
-        _hasSeenOnboarding.value = prefs.getBoolean("has_seen_onboarding", false)
-        _notificationCaptureEnabled.value = prefs.getBoolean("notification_capture_enabled", true)
-        _monitoredApps.value = prefs.getStringSet("monitored_apps", emptySet())
-            ?.mapNotNull { encoded ->
-                val parts = encoded.split("::", limit = 2)
-                if (parts.size == 2) parts[0] to parts[1] else null
+        try {
+            applicationContext = context.applicationContext
+            if (::prefs.isInitialized) return
+            prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            _biometricEnabled.value = prefs.getBoolean("biometric", true)
+            _autoHideBalances.value = prefs.getBoolean("auto_hide", false)
+            _privacyMode.value = prefs.getBoolean("privacy_mode", false)
+            _notificationsEnabled.value = prefs.getBoolean("notifications", true)
+            _smsAlerts.value = prefs.getBoolean("sms_alerts", true)
+            _dateFormat.value = prefs.getString("date_format", "MM/DD/YYYY") ?: "MM/DD/YYYY"
+            _calendarSystem.value = prefs.getString("calendar_system", "Gregorian") ?: "Gregorian"
+            _financialOverviewPeriod.value = prefs.getString("financial_overview_period", "Monthly") ?: "Monthly"
+            _theme.value = prefs.getString("theme", "Light") ?: "Light"
+            _hasPinSet.value = prefs.contains("pin_hash")
+            _hasSeenOnboarding.value = prefs.getBoolean("has_seen_onboarding", false)
+            _notificationCaptureEnabled.value = prefs.getBoolean("notification_capture_enabled", true)
+            _monitoredApps.value = prefs.getStringSet("monitored_apps", emptySet())
+                ?.mapNotNull { encoded ->
+                    val parts = encoded.split("::", limit = 2)
+                    if (parts.size == 2) parts[0] to parts[1] else null
+                }
+                ?.toMap() ?: emptyMap()
+            _userName.value = prefs.getString("user_name", "Account Holder") ?: "Account Holder"
+            _userEmail.value = prefs.getString("user_email", "") ?: ""
+            _profilePhotoUri.value = prefs.getString("profile_photo_uri", null)
+            _lastSmsSyncTimestamp.value = prefs.getLong("last_sms_sync_timestamp", 0L)
+            _summaryFrequencies.value = prefs.getStringSet("summary_frequencies", setOf("Daily"))?.toSet() ?: setOf("Daily")
+            _adFreeUntilMillis.value = prefs.getLong("ad_free_until", 0L)
+            _widgetsEnabled.value = prefs.getBoolean("widgets_enabled", true)
+            _preferredWidgetStyle.value = prefs.getString("preferred_widget_style", "Daily Digest") ?: "Daily Digest"
+            _hiddenAccountIds.value = prefs.getStringSet("hidden_account_ids", emptySet())?.toSet() ?: emptySet()
+            _profileAvatarRing.value = prefs.getString("profile_avatar_ring", "Emerald") ?: "Emerald"
+        } catch (t: Throwable) {
+            android.util.Log.e("SettingsRepository", "Error initializing settings", t)
+        }
+    }
+
+    private fun safeEdit(action: SharedPreferences.Editor.() -> Unit) {
+        try {
+            if (::prefs.isInitialized) {
+                val editor = prefs.edit()
+                editor.action()
+                editor.apply()
             }
-            ?.toMap() ?: emptyMap()
-        _userName.value = prefs.getString("user_name", "Account Holder") ?: "Account Holder"
-        _userEmail.value = prefs.getString("user_email", "") ?: ""
-        _summaryFrequencies.value = prefs.getStringSet("summary_frequencies", setOf("Daily"))?.toSet() ?: setOf("Daily")
-        _adFreeUntilMillis.value = prefs.getLong("ad_free_until", 0L)
+        } catch (t: Throwable) {
+            android.util.Log.e("SettingsRepository", "Error saving preference", t)
+        }
+    }
+
+    fun setProfileAvatarRing(ring: String) {
+        _profileAvatarRing.value = ring
+        prefs.edit().putString("profile_avatar_ring", ring).apply()
+    }
+
+    fun setWidgetsEnabled(enabled: Boolean) {
+        _widgetsEnabled.value = enabled
+        prefs.edit().putBoolean("widgets_enabled", enabled).apply()
+        applicationContext?.let { WeeklySpendingWidgetUpdater.updateAllWidgets(it) }
+    }
+
+    fun setPreferredWidgetStyle(style: String) {
+        _preferredWidgetStyle.value = style
+        prefs.edit().putString("preferred_widget_style", style).apply()
+        applicationContext?.let { WeeklySpendingWidgetUpdater.updateAllWidgets(it) }
+    }
+
+    fun toggleAccountVisibility(accountId: String) {
+        val current = _hiddenAccountIds.value.toMutableSet()
+        if (current.contains(accountId)) {
+            current.remove(accountId)
+        } else {
+            current.add(accountId)
+        }
+        _hiddenAccountIds.value = current
+        prefs.edit().putStringSet("hidden_account_ids", current).apply()
+        applicationContext?.let { WeeklySpendingWidgetUpdater.updateAllWidgets(it) }
+    }
+
+    fun isAccountHidden(accountId: String): Boolean = _hiddenAccountIds.value.contains(accountId)
+
+    fun setProfilePhotoUri(uri: String?) {
+        _profilePhotoUri.value = uri
+        prefs.edit().putString("profile_photo_uri", uri).apply()
+    }
+
+    fun setLastSmsSyncTimestamp(timestamp: Long) {
+        _lastSmsSyncTimestamp.value = timestamp
+        prefs.edit().putLong("last_sms_sync_timestamp", timestamp).apply()
     }
 
     fun setBiometric(enabled: Boolean) {
@@ -128,6 +219,13 @@ object SettingsRepository {
     fun setNotifications(enabled: Boolean) {
         _notificationsEnabled.value = enabled
         prefs.edit().putBoolean("notifications", enabled).apply()
+        applicationContext?.let {
+            if (enabled) {
+                SummaryScheduler.rescheduleAll(it, _summaryFrequencies.value)
+            } else {
+                SummaryScheduler.rescheduleAll(it, emptySet())
+            }
+        }
     }
 
     fun setSmsAlerts(enabled: Boolean) {
@@ -143,6 +241,11 @@ object SettingsRepository {
     fun setCalendarSystem(value: String) {
         _calendarSystem.value = value
         prefs.edit().putString("calendar_system", value).apply()
+    }
+
+    fun setFinancialOverviewPeriod(value: String) {
+        _financialOverviewPeriod.value = value
+        prefs.edit().putString("financial_overview_period", value).apply()
     }
 
     fun setTheme(value: String) {
@@ -165,6 +268,11 @@ object SettingsRepository {
         // SharedPreferences requires a fresh Set instance for putStringSet — never
         // pass through a Set that might still be mutated/reused elsewhere.
         prefs.edit().putStringSet("summary_frequencies", HashSet(values)).apply()
+        applicationContext?.let {
+            if (_notificationsEnabled.value) {
+                SummaryScheduler.rescheduleAll(it, values)
+            }
+        }
     }
 
     /** Grants an ad-free window of [durationMillis] from now, extending any grant already in progress. */
@@ -213,17 +321,19 @@ object SettingsRepository {
     }
 
     fun setAppPin(pin: String) {
+        if (!::prefs.isInitialized) return
         val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
-        prefs.edit()
-            .putString("pin_salt", Base64.encodeToString(salt, Base64.NO_WRAP))
-            .putString("pin_hash", hashPin(pin, salt))
-            .apply()
+        safeEdit {
+            putString("pin_salt", Base64.encodeToString(salt, Base64.NO_WRAP))
+            putString("pin_hash", hashPin(pin, salt))
+        }
         _hasPinSet.value = true
     }
 
     /** Returns true if [pin] matches the stored PIN, or if no PIN has been set yet. */
     fun verifyPin(pin: String): Boolean {
         if (!_hasPinSet.value) return true
+        if (!::prefs.isInitialized) return false
         val saltStr = prefs.getString("pin_salt", null) ?: return false
         val storedHash = prefs.getString("pin_hash", null) ?: return false
         val salt = Base64.decode(saltStr, Base64.NO_WRAP)
@@ -234,5 +344,29 @@ object SettingsRepository {
         val spec = PBEKeySpec(pin.toCharArray(), salt, 12000, 256)
         val key = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec)
         return Base64.encodeToString(key.encoded, Base64.NO_WRAP)
+    }
+
+    fun clearAll(context: Context) {
+        _userName.value = "Account Holder"
+        _userEmail.value = ""
+        _profilePhotoUri.value = null
+        _lastSmsSyncTimestamp.value = 0L
+        _theme.value = "Light"                     // BUG FIX: was "Dark", default is "Light"
+        _calendarSystem.value = "Gregorian"        // BUG FIX: was missing — prefs cleared but StateFlow not reset
+        _dateFormat.value = "MM/DD/YYYY"           // BUG FIX: was missing — prefs cleared but StateFlow not reset
+        _financialOverviewPeriod.value = "Monthly"
+        _notificationsEnabled.value = true
+        _smsAlerts.value = true
+        _notificationCaptureEnabled.value = true
+        _summaryFrequencies.value = setOf("Daily")
+        _biometricEnabled.value = true
+        _autoHideBalances.value = false
+        _privacyMode.value = false
+        _hasPinSet.value = false
+        _hasSeenOnboarding.value = false
+        _monitoredApps.value = emptyMap()
+        _adFreeUntilMillis.value = 0L              // BUG FIX: was missing — ad-free grant must clear on reset
+
+        prefs.edit().clear().apply()
     }
 }

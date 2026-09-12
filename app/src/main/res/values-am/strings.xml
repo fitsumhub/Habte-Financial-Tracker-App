@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">ሀብቴ</string>
+    <string name="widget_spending_digest_title">ሳምንታዊ የወጪ ዳሰሳ</string>
+    <string name="widget_spending_digest_desc">የሳምንቱ የበጀት ሂደት እና የዛሬው ወጪ በጨረፍታ</string>
+    <string name="widget_net_worth_title">የሀብት እና የፋይናንስ ሁኔታ</string>
+    <string name="widget_net_worth_desc">አጠቃላይ ቀሪ ሂሳብ እና የባንኮች ቁጥር</string>
+    <string name="widget_quick_tracker_title">ፈጣን የግብይት ተከታታይ</string>
+    <string name="widget_quick_tracker_desc">የቅርብ ጊዜ የገንዘብ እንቅስቃሴዎችን የሚያሳይ</string>
+    <string name="widget_multi_bank_title">የበርካታ ባንኮች ቀሪ ሂሳብ</string>
+    <string name="widget_multi_bank_desc">የተገናኙ ባንኮች አጠቃላይ መረጃ</string>
+    <string name="widget_budget_pulse_title">የበጀት ሁኔታ እና የዕለታዊ ወጪ</string>
+    <string name="widget_budget_pulse_desc">ለቀኑ የቀረውን የበጀት መጠን የሚያሳይ</string>
 </resources>

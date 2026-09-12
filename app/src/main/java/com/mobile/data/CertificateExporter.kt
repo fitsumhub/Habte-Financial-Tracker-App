@@ -31,6 +31,12 @@ object CertificateExporter {
         return file
     }
 
+    fun saveJpg(context: Context, bitmap: Bitmap, fileName: String): File {
+        val file = File(certificatesDir(context), fileName)
+        FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out) }
+        return file
+    }
+
     /** Renders [bitmap] as a single full-page PDF. */
     fun savePdf(bitmap: Bitmap, destination: File) {
         val document = PdfDocument()

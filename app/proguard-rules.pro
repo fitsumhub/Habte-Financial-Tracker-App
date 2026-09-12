@@ -18,6 +18,13 @@
 # this already, but the explicit entity keep is cheap insurance against reflection-based
 # schema validation issues after minification).
 -keep class com.mobile.data.db.** { *; }
+-keep class androidx.room.** { *; }
+
+# Keep Habte application, domain data models, and services
+-keep class com.mobile.HabteApplication { *; }
+-keep class com.mobile.data.** { *; }
+-keep class com.mobile.ads.** { *; }
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
 
 # Kotlin enums looked up by name (Room stores enum columns as their `.name` string —
 # see PaymentReminderEntity.repeat / ReminderRepeat.valueOf()).
@@ -25,3 +32,4 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+

@@ -8,47 +8,63 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.mobile.data.Certificate
+import com.mobile.data.CertificateCategory
 import com.mobile.data.CertificateContent
 import com.mobile.data.CertificateExporter
 import com.mobile.data.CertificatePeriod
 import com.mobile.data.CertificateRenderer
 import com.mobile.data.CertificateRepository
 import com.mobile.data.CertificateTemplate
+import com.mobile.data.Data
 import com.mobile.data.FinanceRepository
 import com.mobile.data.SettingsRepository
 import com.mobile.data.computeCertificateAchievement
+import com.mobile.ui.theme.LocalEthiopianColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -58,38 +74,56 @@ import java.util.Date
 import java.util.Locale
 
 private fun decodeBitmapFromUri(context: Context, uri: Uri): Bitmap? = try {
-    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-} catch (e: Exception) {
+    context.contentResolver.openInputStream(uri)?.use { stream ->
+        BitmapFactory.decodeStream(stream)
+    }
+} catch (_: Exception) {
     null
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AchievementCertificatesScreen(onBack: () -> Unit) {
+fun AchievementCertificatesScreen(
+    onBack: () -> Unit
+) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
+    val colors = LocalEthiopianColors.current
+
     val transactions by FinanceRepository.transactions.collectAsState()
     val savedCertificates by CertificateRepository.certificates.collectAsState()
     val userNameSetting by SettingsRepository.userName.collectAsState()
+    val savedProfilePhotoUri by SettingsRepository.profilePhotoUri.collectAsState()
 
     var selectedPeriod by remember { mutableStateOf(CertificatePeriod.MONTHLY) }
+    var selectedCategory by remember { mutableStateOf(CertificateCategory.OVERALL_MASTERY) }
     var selectedTemplate by remember { mutableStateOf(CertificateTemplate.CLASSIC_GOLD) }
-    var nameInput by remember { mutableStateOf(userNameSetting) }
-    var photoUri by remember { mutableStateOf<Uri?>(null) }
+    var nameInput by remember(userNameSetting) { mutableStateOf(userNameSetting) }
+    var photoUri by remember { mutableStateOf<Uri?>(savedProfilePhotoUri?.let { Uri.parse(it) }) }
     var photoBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var renderedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isRendering by remember { mutableStateOf(true) }
     var showDownloadMenu by remember { mutableStateOf(false) }
+    var showVaultSheet by remember { mutableStateOf(false) }
+    var showFullscreenPreview by remember { mutableStateOf(false) }
 
-    // Tracks which already-rendered Bitmap (by identity) has been persisted, so tapping
-    // Download then Share on the same unchanged preview reuses one saved file/gallery entry
-    // instead of writing a duplicate every time.
     var savedForBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var savedFile by remember { mutableStateOf<File?>(null) }
 
     val dateLabel = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date()) }
-    val achievement = remember(transactions, selectedPeriod) {
-        computeCertificateAchievement(transactions, selectedPeriod)
+    val achievement = remember(transactions, selectedPeriod, selectedCategory) {
+        computeCertificateAchievement(transactions, selectedPeriod, selectedCategory)
+    }
+
+    // Load initial profile photo if available
+    LaunchedEffect(savedProfilePhotoUri) {
+        if (photoBitmap == null && savedProfilePhotoUri != null) {
+            val bmp = withContext(Dispatchers.IO) {
+                decodeBitmapFromUri(context, Uri.parse(savedProfilePhotoUri))
+            }
+            if (bmp != null) photoBitmap = bmp
+        }
     }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -100,10 +134,71 @@ fun AchievementCertificatesScreen(onBack: () -> Unit) {
             scope.launch {
                 val bmp = withContext(Dispatchers.IO) { decodeBitmapFromUri(context, uri) }
                 photoBitmap = bmp
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                Toast.makeText(context, "Medallion portrait attached", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
+    // Document creation launchers for manual download exports
+    val savePngLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("image/png")
+    ) { destUri ->
+        val bitmapToExport = renderedBitmap
+        if (destUri != null && bitmapToExport != null) {
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    val tempFile = CertificateExporter.savePng(
+                        context,
+                        bitmapToExport,
+                        "Habte_${selectedTemplate.name}_${selectedPeriod.name}.png"
+                    )
+                    CertificateExporter.copyToUri(context, tempFile, destUri)
+                }
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                Toast.makeText(context, "High-Res PNG Certificate Exported", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val saveJpgLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("image/jpeg")
+    ) { destUri ->
+        val bitmapToExport = renderedBitmap
+        if (destUri != null && bitmapToExport != null) {
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    val tempFile = CertificateExporter.saveJpg(
+                        context,
+                        bitmapToExport,
+                        "Habte_${selectedTemplate.name}_${selectedPeriod.name}.jpg"
+                    )
+                    CertificateExporter.copyToUri(context, tempFile, destUri)
+                }
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                Toast.makeText(context, "JPEG Certificate Exported", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val savePdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { destUri ->
+        val bitmapToExport = renderedBitmap
+        if (destUri != null && bitmapToExport != null) {
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    val tempPdf = File(context.cacheDir, "Habte_Certificate_${System.currentTimeMillis()}.pdf")
+                    CertificateExporter.savePdf(bitmapToExport, tempPdf)
+                    CertificateExporter.copyToUri(context, tempPdf, destUri)
+                }
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                Toast.makeText(context, "Official PDF Document Exported", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // Dynamic rendering pipeline
     LaunchedEffect(nameInput, photoBitmap, achievement, selectedPeriod, selectedTemplate, dateLabel) {
         isRendering = true
         val content = CertificateContent(
@@ -114,7 +209,8 @@ fun AchievementCertificatesScreen(onBack: () -> Unit) {
             achievementTitle = achievement.title,
             achievementSubtitle = achievement.subtitle,
             dateLabel = dateLabel,
-            template = selectedTemplate
+            template = selectedTemplate,
+            achievement = achievement
         )
         renderedBitmap = withContext(Dispatchers.Default) { CertificateRenderer.render(content) }
         isRendering = false
@@ -147,266 +243,1009 @@ fun AchievementCertificatesScreen(onBack: () -> Unit) {
         return file
     }
 
-    val pngLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            val file = ensureSaved()
-            withContext(Dispatchers.IO) { CertificateExporter.copyToUri(context, file, uri) }
-            Toast.makeText(context, "Certificate downloaded as PNG", Toast.LENGTH_SHORT).show()
-        }
-    }
-    val jpgLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val bitmap = renderedBitmap
-        if (bitmap == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            ensureSaved()
-            withContext(Dispatchers.IO) {
-                context.contentResolver.openOutputStream(uri)?.use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out) }
-            }
-            Toast.makeText(context, "Certificate downloaded as JPG", Toast.LENGTH_SHORT).show()
-        }
-    }
-    val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val bitmap = renderedBitmap
-        if (bitmap == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            ensureSaved()
-            withContext(Dispatchers.IO) {
-                val temp = File(context.cacheDir, "certificate_export_temp.pdf")
-                CertificateExporter.savePdf(bitmap, temp)
-                CertificateExporter.copyToUri(context, temp, uri)
-            }
-            Toast.makeText(context, "Certificate downloaded as PDF", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun shareCurrent() {
-        scope.launch {
-            val file = ensureSaved()
-            context.startActivity(CertificateExporter.shareIntent(context, file, "image/png"))
-        }
-    }
+    val infiniteTransition = rememberInfiniteTransition(label = "ambientCert")
+    val glowPulse by infiniteTransition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glowPulse"
+    )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(colors.background)
             .statusBarsPadding()
     ) {
-        Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp).padding(bottom = 8.dp)) {
+        // ── TOP EXECUTIVE APP BAR ──────────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(colors.surfaceElevated)
+                        .border(1.dp, colors.border, CircleShape)
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onBack()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = colors.textPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text("Achievement Certificates", color = MaterialTheme.colorScheme.onSurface, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Honors & Certificates",
+                            color = colors.textPrimary,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Default.WorkspacePremium,
+                            contentDescription = null,
+                            tint = colors.goldAccent,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Text(
+                        text = "Official Verified Milestone Diplomas",
+                        color = colors.textMuted,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            // Vault / Gallery Icon with Badge
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colors.surfaceElevated)
+                    .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showVaultSheet = true
+                    }
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.EmojiEvents,
+                        contentDescription = "Awards Vault",
+                        tint = colors.goldAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Vault (${savedCertificates.size})",
+                        color = colors.textPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
 
+        // ── SCROLLABLE DESIGNER WORKSPACE ──────────────────────────────────────
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 40.dp)
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                "Celebrate your progress — generate a certificate from your real tracking history and share it anywhere.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-                lineHeight = 19.sp,
-                modifier = Modifier.padding(bottom = 20.dp)
-            )
-
-            // Period selector
-            Row(
+            // ── 1. HERO 3D FLOATING CERTIFICATE PREVIEW ────────────────────────
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 20.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .height(440.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        brush = Brush.radialGradient(
+                            listOf(
+                                colors.surfaceElevated,
+                                colors.surface,
+                                Color.Black
+                            )
+                        )
+                    )
+                    .border(1.2.dp, colors.goldAccent.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
+                    .clickable {
+                        if (renderedBitmap != null) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showFullscreenPreview = true
+                        }
+                    },
+                contentAlignment = Alignment.Center
             ) {
-                CertificatePeriod.values().forEach { period ->
-                    val isSelected = selectedPeriod == period
+                // Ambient pulsating gold/emerald aura behind preview
+                Box(
+                    modifier = Modifier
+                        .size(280.dp)
+                        .graphicsLayer {
+                            scaleX = glowPulse
+                            scaleY = glowPulse
+                            alpha = 0.16f
+                        }
+                        .background(
+                            Brush.radialGradient(listOf(colors.goldAccent, Color.Transparent)),
+                            CircleShape
+                        )
+                        .blur(80.dp)
+                )
+
+                val previewBitmap = renderedBitmap
+                if (previewBitmap != null) {
+                    Image(
+                        bitmap = previewBitmap.asImageBitmap(),
+                        contentDescription = "Certificate Preview",
+                        modifier = Modifier
+                            .fillMaxHeight(0.92f)
+                            .aspectRatio(1200f / 1600f)
+                            .shadow(16.dp, RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.dp, colors.goldAccent.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                    )
+                }
+
+                if (isRendering) {
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                            .clickable { selectedPeriod = period }
-                            .padding(vertical = 10.dp),
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.55f)),
                         contentAlignment = Alignment.Center
                     ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(
+                                color = colors.goldAccent,
+                                modifier = Modifier.size(36.dp),
+                                strokeWidth = 3.dp
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Engraving Certificate…",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Floating "Tap to Zoom" Badge
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(14.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.Black.copy(alpha = 0.75f))
+                        .border(0.8.dp, colors.goldAccent.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.ZoomIn,
+                            contentDescription = null,
+                            tint = colors.goldAccent,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            period.label,
-                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            text = "Fullscreen",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
 
-            Text(
-                "Recipient Name",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            OutlinedTextField(
-                value = nameInput,
-                onValueChange = { nameInput = it },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
-                singleLine = true,
-                colors = TextFieldDefaults.outlinedTextFieldColors(
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                )
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 20.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                    .clickable {
-                        photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    }
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        if (photoBitmap != null) "Photo selected" else "Add a profile photo",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text("Optional — shown on your certificate", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                }
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-
-            Text(
-                "Template",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                CertificateTemplate.values().forEach { template ->
-                    TemplateSwatch(
-                        template = template,
-                        isSelected = selectedTemplate == template,
-                        onClick = { selectedTemplate = template },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            Text(
-                "Preview",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+            // ── 2. VERIFIED FINANCIAL INTELLIGENCE STRIP ───────────────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(0.75f)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(colors.surface)
+                    .border(1.dp, colors.border, RoundedCornerShape(18.dp))
+                    .padding(14.dp)
             ) {
-                val bitmap = renderedBitmap
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Certificate preview",
-                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(20.dp))
-                    )
-                }
-                if (isRendering) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.VerifiedUser,
+                                contentDescription = null,
+                                tint = colors.emeraldPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Verified Ledger Intelligence",
+                                color = colors.textPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Discipline Score Badge
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(colors.goldAccent.copy(alpha = 0.15f))
+                                .border(0.8.dp, colors.goldAccent.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "Discipline: ${achievement.disciplineScore}/100",
+                                color = colors.goldAccent,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // 4 Key Metric Tiles
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        MetricTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Period Inflow",
+                            value = "ETB ${Data.formatBalance(achievement.totalIncome)}",
+                            color = colors.income
+                        )
+                        MetricTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Period Outflow",
+                            value = "ETB ${Data.formatBalance(achievement.totalExpense)}",
+                            color = colors.expense
+                        )
+                        MetricTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Net Retained",
+                            value = "ETB ${Data.formatBalance(achievement.netSaved)}",
+                            color = if (achievement.netSaved >= 0) colors.emeraldPrimary else colors.expense
+                        )
+                        MetricTile(
+                            modifier = Modifier.weight(1f),
+                            label = "Savings Rate",
+                            value = "${achievement.savingsRatePercent?.toInt() ?: 0}%",
+                            color = colors.goldAccent
+                        )
+                    }
+
+                    // Capital Retention Visual Progress Bar
+                    val savedFraction = ((achievement.savingsRatePercent ?: 0.0) / 100.0).coerceIn(0.0, 1.0).toFloat()
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Capital Retention Velocity",
+                                color = colors.textMuted,
+                                fontSize = 10.sp
+                            )
+                            Text(
+                                text = "${(savedFraction * 100).toInt()}% Retained",
+                                color = colors.emeraldPrimary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(colors.expense.copy(alpha = 0.25f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(savedFraction)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(colors.emeraldPrimary, colors.goldAccent)
+                                        )
+                                    )
+                            )
+                        }
+                    }
+
+                    // Deep Financial Analytics Sub-chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.surfaceElevated)
+                                .border(0.6.dp, colors.border, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 6.dp, vertical = 5.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Solvency Factor",
+                                    color = colors.textMuted,
+                                    fontSize = 9.sp,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = "${String.format(Locale.getDefault(), "%.1f", achievement.solvencyRatio)}x (${achievement.solvencyTier})",
+                                    color = colors.textPrimary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.surfaceElevated)
+                                .border(0.6.dp, colors.border, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 6.dp, vertical = 5.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Primary Outflow",
+                                    color = colors.textMuted,
+                                    fontSize = 9.sp,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = achievement.topCategory,
+                                    color = colors.textPrimary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.surfaceElevated)
+                                .border(0.6.dp, colors.border, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 6.dp, vertical = 5.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Audit Depth",
+                                    color = colors.textMuted,
+                                    fontSize = 9.sp,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = "${achievement.transactionCount} Verified Txns",
+                                    color = colors.textPrimary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            // ── 3. MILESTONE HONORS FOCUS (CATEGORY SELECTOR) ──────────────────
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Honors Milestone Focus",
+                    color = colors.textPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CertificateCategory.values().forEach { cat ->
+                        val isSelected = selectedCategory == cat
+                        val catIcon = when (cat) {
+                            CertificateCategory.OVERALL_MASTERY -> Icons.Default.AutoAwesome
+                            CertificateCategory.SAVINGS_CHAMPION -> Icons.Default.Savings
+                            CertificateCategory.DISCIPLINED_BUDGET -> Icons.Default.Shield
+                            CertificateCategory.TRANSACTION_VANGUARD -> Icons.Default.ReceiptLong
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) colors.emeraldPrimary else colors.surfaceElevated)
+                                .border(
+                                    1.dp,
+                                    if (isSelected) colors.goldAccent else colors.border,
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    selectedCategory = cat
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = catIcon,
+                                    contentDescription = null,
+                                    tint = if (isSelected) Color.White else colors.goldAccent,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = cat.label,
+                                    color = if (isSelected) Color.White else colors.textPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── 4. PERIOD TIMELINE SELECTOR ────────────────────────────────────
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Accounting Timeframe",
+                    color = colors.textPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colors.surfaceElevated)
+                        .border(1.dp, colors.border, RoundedCornerShape(14.dp))
+                        .padding(4.dp)
+                ) {
+                    CertificatePeriod.values().forEach { period ->
+                        val isSelected = selectedPeriod == period
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSelected) colors.emeraldPrimary else Color.Transparent)
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    selectedPeriod = period
+                                }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = period.label,
+                                color = if (isSelected) Color.White else colors.textMuted,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── 5. LUXURY EXECUTIVE TEMPLATE STUDIO (6 STYLES) ─────────────────
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Executive Certificate Style",
+                        color = colors.textPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "6 Bespoke Diplomas",
+                        color = colors.goldAccent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                val templates = CertificateTemplate.values()
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (i in templates.indices step 2) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            for (j in 0..1) {
+                                if (i + j < templates.size) {
+                                    val tmpl = templates[i + j]
+                                    val isSelected = selectedTemplate == tmpl
+                                    TemplateSelectionCard(
+                                        modifier = Modifier.weight(1f),
+                                        template = tmpl,
+                                        isSelected = isSelected,
+                                        onClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            selectedTemplate = tmpl
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── 6. RECIPIENT & MEDALLION PHOTO STUDIO ──────────────────────────
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(colors.surface)
+                    .border(1.dp, colors.border, RoundedCornerShape(18.dp))
+                    .padding(16.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Award Personalization",
+                        color = colors.textPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    OutlinedTextField(
+                        value = nameInput,
+                        onValueChange = { nameInput = it },
+                        label = { Text("Recipient Name on Certificate") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Person, contentDescription = null, tint = colors.goldAccent)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = colors.surfaceElevated,
+                            unfocusedContainerColor = colors.surfaceElevated,
+                            focusedBorderColor = colors.goldAccent,
+                            unfocusedBorderColor = colors.border,
+                            focusedTextColor = colors.textPrimary,
+                            unfocusedTextColor = colors.textPrimary
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true
+                    )
+
+                    // Photo Medallion Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.surfaceElevated)
+                                    .border(1.2.dp, colors.goldAccent, CircleShape)
+                                    .clickable {
+                                        photoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val photo = photoBitmap
+                                if (photo != null) {
+                                    Image(
+                                        bitmap = photo.asImageBitmap(),
+                                        contentDescription = "Medallion Portrait",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.AddAPhoto,
+                                        contentDescription = "Upload Photo",
+                                        tint = colors.goldAccent,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column {
+                                Text(
+                                    text = if (photoBitmap != null) "Medallion Photo Active" else "Add Portrait Medallion",
+                                    color = colors.textPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Embossed into official wax seal frame",
+                                    color = colors.textMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        if (photoBitmap != null) {
+                            TextButton(
+                                onClick = {
+                                    photoUri = null
+                                    photoBitmap = null
+                                    Toast.makeText(context, "Portrait removed", Toast.LENGTH_SHORT).show()
+                                }
+                            ) {
+                                Text("Remove", color = colors.expense, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 7. STICKY BOTTOM ACTION BAR (SHARE & EXPORT) ───────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.surface)
+                .border(1.dp, colors.border, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Share Award Button
+                Button(
+                    onClick = {
+                        if (renderedBitmap != null) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            scope.launch {
+                                val file = ensureSaved()
+                                val shareIntent = CertificateExporter.shareIntent(context, file, "image/png")
+                                context.startActivity(shareIntent)
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.surfaceElevated),
+                    border = androidx.compose.foundation.BorderStroke(1.2.dp, colors.goldAccent),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = null,
+                        tint = colors.goldAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Share Award",
+                        color = colors.textPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Download / Export Multi-Format Menu Button
                 Box(modifier = Modifier.weight(1f)) {
                     Button(
                         onClick = { showDownloadMenu = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = renderedBitmap != null,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.emeraldPrimary),
+                        shape = RoundedCornerShape(14.dp)
                     ) {
-                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Download", fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Export Award",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                    DropdownMenu(expanded = showDownloadMenu, onDismissRequest = { showDownloadMenu = false }) {
-                        DropdownMenuItem(text = { Text("PNG (best quality)") }, onClick = {
-                            showDownloadMenu = false
-                            pngLauncher.launch("Habte_Certificate_${selectedPeriod.label}.png")
-                        })
-                        DropdownMenuItem(text = { Text("JPG") }, onClick = {
-                            showDownloadMenu = false
-                            jpgLauncher.launch("Habte_Certificate_${selectedPeriod.label}.jpg")
-                        })
-                        DropdownMenuItem(text = { Text("PDF") }, onClick = {
-                            showDownloadMenu = false
-                            pdfLauncher.launch("Habte_Certificate_${selectedPeriod.label}.pdf")
-                        })
+
+                    DropdownMenu(
+                        expanded = showDownloadMenu,
+                        onDismissRequest = { showDownloadMenu = false },
+                        modifier = Modifier.background(colors.surfaceElevated)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("High-Resolution PNG (Lossless)", fontWeight = FontWeight.Bold) },
+                            leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, tint = colors.emeraldPrimary) },
+                            onClick = {
+                                showDownloadMenu = false
+                                savePngLauncher.launch("Habte_${selectedTemplate.name}_${selectedPeriod.name}.png")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("JPEG Image (Fast)", fontWeight = FontWeight.Bold) },
+                            leadingIcon = { Icon(Icons.Default.Photo, contentDescription = null, tint = colors.goldAccent) },
+                            onClick = {
+                                showDownloadMenu = false
+                                saveJpgLauncher.launch("Habte_${selectedTemplate.name}_${selectedPeriod.name}.jpg")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Official PDF Document (A4 Printable)", fontWeight = FontWeight.Bold) },
+                            leadingIcon = { Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = colors.expense) },
+                            onClick = {
+                                showDownloadMenu = false
+                                savePdfLauncher.launch("Habte_${selectedTemplate.name}_${selectedPeriod.name}.pdf")
+                            }
+                        )
                     }
-                }
-                OutlinedButton(
-                    onClick = { shareCurrent() },
-                    modifier = Modifier.weight(1f),
-                    enabled = renderedBitmap != null
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Share", fontWeight = FontWeight.Bold)
                 }
             }
+        }
+    }
 
-            if (savedCertificates.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(32.dp))
+    // ── FULLSCREEN PREVIEW MODAL ───────────────────────────────────────────────
+    if (showFullscreenPreview && renderedBitmap != null) {
+        Dialog(
+            onDismissRequest = { showFullscreenPreview = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.94f))
+                    .clickable { showFullscreenPreview = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    val fullBitmap = renderedBitmap
+                    if (fullBitmap != null) {
+                        Image(
+                            bitmap = fullBitmap.asImageBitmap(),
+                            contentDescription = "Full Certificate Preview",
+                            modifier = Modifier
+                                .fillMaxWidth(0.95f)
+                                .aspectRatio(1200f / 1600f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .border(1.5.dp, colors.goldAccent, RoundedCornerShape(16.dp))
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { showFullscreenPreview = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.emeraldPrimary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Close Fullscreen Preview", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+
+    // ── SAVED CERTIFICATES VAULT MODAL SHEET ───────────────────────────────────
+    if (showVaultSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showVaultSheet = false },
+            containerColor = colors.surface,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 36.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.EmojiEvents,
+                            contentDescription = null,
+                            tint = colors.goldAccent,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Honors & Awards Vault",
+                            color = colors.textPrimary,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    IconButton(onClick = { showVaultSheet = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = colors.textMuted)
+                    }
+                }
+
                 Text(
-                    "Your Certificates",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    text = "Historical record of your verified financial achievements.",
+                    color = colors.textMuted,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    savedCertificates.forEach { certificate ->
-                        key(certificate.id) {
-                            SavedCertificateCard(certificate = certificate)
+
+                if (savedCertificates.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.WorkspacePremium,
+                                contentDescription = null,
+                                tint = colors.textMuted,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "No saved certificates yet",
+                                color = colors.textMuted,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "Generate and export an official award to store it in your vault.",
+                                color = colors.textMuted.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 24.dp)
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(savedCertificates, key = { it.id }) { cert ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(colors.surfaceElevated)
+                                    .border(1.dp, colors.border, RoundedCornerShape(16.dp))
+                                    .padding(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        // Thumbnail
+                                        Box(
+                                            modifier = Modifier
+                                                .size(54.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color.Black),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            AsyncImage(
+                                                model = File(cert.imagePath),
+                                                contentDescription = null,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column {
+                                            Text(
+                                                text = cert.achievementTitle,
+                                                color = colors.goldAccent,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = "${cert.userName} · ${cert.period.label}",
+                                                color = colors.textPrimary,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            val dateStr = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+                                                .format(Date(cert.generatedAtMillis))
+                                            Text(
+                                                text = "Awarded: $dateStr",
+                                                color = colors.textMuted,
+                                                fontSize = 10.sp
+                                            )
+                                        }
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(
+                                            onClick = {
+                                                val file = File(cert.imagePath)
+                                                if (file.exists()) {
+                                                    val shareIntent = CertificateExporter.shareIntent(context, file, "image/png")
+                                                    context.startActivity(shareIntent)
+                                                }
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Share,
+                                                contentDescription = "Share",
+                                                tint = colors.goldAccent,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = {
+                                                scope.launch { CertificateRepository.delete(cert) }
+                                                Toast.makeText(context, "Certificate deleted", Toast.LENGTH_SHORT).show()
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete",
+                                                tint = colors.expense,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -415,115 +1254,150 @@ fun AchievementCertificatesScreen(onBack: () -> Unit) {
     }
 }
 
-/** One selectable template swatch — colors here are a close approximation of CertificateRenderer's actual palette for that template, just enough to preview the vibe before rendering. */
+// ── HELPER COMPONENT: METRIC TILE ──────────────────────────────────────────────
 @Composable
-private fun TemplateSwatch(template: CertificateTemplate, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val gradientColors = when (template) {
-        CertificateTemplate.CLASSIC_GOLD -> listOf(Color(0xFF312E81), Color(0xFF1E1B4B))
-        CertificateTemplate.ETHIOPIAN_HERITAGE -> listOf(Color(0xFF0C3D24), Color(0xFF081F12))
-        CertificateTemplate.BIRR_BANKNOTE -> listOf(Color(0xFF0B4D3A), Color(0xFF041A14))
-    }
-    val accentColor = when (template) {
-        CertificateTemplate.CLASSIC_GOLD -> Color(0xFFFBBF24)
-        CertificateTemplate.ETHIOPIAN_HERITAGE -> Color(0xFFFCDD09)
-        CertificateTemplate.BIRR_BANKNOTE -> Color(0xFFEFC55E)
-    }
-
-    Column(
+private fun MetricTile(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String,
+    color: Color
+) {
+    val colors = LocalEthiopianColors.current
+    Box(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(Brush.verticalGradient(gradientColors))
-            .border(
-                width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) accentColor else Color.White.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(14.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp, horizontal = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .clip(RoundedCornerShape(10.dp))
+            .background(colors.surfaceElevated)
+            .border(0.6.dp, colors.border, RoundedCornerShape(10.dp))
+            .padding(6.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(26.dp)
-                .clip(CircleShape)
-                .background(accentColor.copy(alpha = 0.25f))
-                .border(1.5.dp, accentColor, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isSelected) {
-                Icon(Icons.Default.Check, contentDescription = "Selected", tint = accentColor, modifier = Modifier.size(15.dp))
-            }
+        Column {
+            Text(
+                text = label,
+                color = colors.textMuted,
+                fontSize = 9.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = value,
+                color = color,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            template.label,
-            color = Color.White,
-            fontSize = 11.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            textAlign = TextAlign.Center,
-            maxLines = 2
-        )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ── HELPER COMPONENT: TEMPLATE SELECTION CARD ──────────────────────────────────
 @Composable
-private fun SavedCertificateCard(certificate: Certificate) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val dateFormat = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
+private fun TemplateSelectionCard(
+    modifier: Modifier = Modifier,
+    template: CertificateTemplate,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val colors = LocalEthiopianColors.current
 
-    val downloadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            withContext(Dispatchers.IO) { CertificateExporter.copyToUri(context, File(certificate.imagePath), uri) }
-            Toast.makeText(context, "Certificate downloaded", Toast.LENGTH_SHORT).show()
-        }
+    val (bgGradient, accentColor, subtitleText) = when (template) {
+        CertificateTemplate.CLASSIC_GOLD -> Triple(
+            listOf(Color(0xFF1E1B4B), Color(0xFF030712)),
+            Color(0xFFFBBF24),
+            "Midnight Navy & Gold"
+        )
+        CertificateTemplate.ROYAL_EMERALD -> Triple(
+            listOf(Color(0xFF064E3B), Color(0xFF021A13)),
+            Color(0xFF34D399),
+            "Forest Mint Guilloché"
+        )
+        CertificateTemplate.ETHIOPIAN_HERITAGE -> Triple(
+            listOf(Color(0xFF4A0E17), Color(0xFF130507)),
+            Color(0xFFFCDD09),
+            "Tricolor Tibeb Tapestry"
+        )
+        CertificateTemplate.BIRR_BANKNOTE -> Triple(
+            listOf(Color(0xFF0F3D2E), Color(0xFF03120D)),
+            Color(0xFFEFC55E),
+            "National Banknote Rosette"
+        )
+        CertificateTemplate.PLATINUM_TITANIUM -> Triple(
+            listOf(Color(0xFF27272A), Color(0xFF09090B)),
+            Color(0xFFE2E8F0),
+            "Obsidian & Metallic Chrome"
+        )
+        CertificateTemplate.SOLAR_GOLD -> Triple(
+            listOf(Color(0xFF78350F), Color(0xFF1A0701)),
+            Color(0xFFF59E0B),
+            "Warm Amber & Golden Ochre"
+        )
     }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center
-        ) {
-            val file = File(certificate.imagePath)
-            if (file.exists()) {
-                AsyncImage(
-                    model = file,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp))
-                )
-            } else {
-                Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            }
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(certificate.achievementTitle, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(
-                "${certificate.period.label} • ${certificate.periodLabel}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.surface)
+            .border(
+                width = if (isSelected) 2.dp else 1.dp,
+                color = if (isSelected) accentColor else colors.border,
+                shape = RoundedCornerShape(14.dp)
             )
-            Text(dateFormat.format(Date(certificate.generatedAtMillis)), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-        }
-        IconButton(onClick = {
-            downloadLauncher.launch("Habte_Certificate_${certificate.period.label}_${certificate.generatedAtMillis}.png")
-        }) {
-            Icon(Icons.Default.Download, contentDescription = "Download", tint = MaterialTheme.colorScheme.primary)
-        }
-        IconButton(onClick = {
-            context.startActivity(CertificateExporter.shareIntent(context, File(certificate.imagePath), "image/png"))
-        }) {
-            Icon(Icons.Default.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.primary)
+            .clickable { onClick() }
+            .padding(10.dp)
+    ) {
+        Column {
+            // Gradient swatch preview
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Brush.horizontalGradient(bgGradient))
+                    .border(0.6.dp, accentColor.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 6.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(accentColor)
+                    )
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Selected",
+                            tint = accentColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = template.label,
+                color = if (isSelected) accentColor else colors.textPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Text(
+                text = subtitleText,
+                color = colors.textMuted,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

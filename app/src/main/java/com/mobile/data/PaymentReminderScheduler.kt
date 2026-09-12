@@ -43,7 +43,11 @@ object PaymentReminderScheduler {
 
     fun cancel(context: Context, reminderId: Long) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        pendingIntent(context, reminderId, createIfMissing = false)?.let { alarmManager.cancel(it) }
+        try {
+            pendingIntent(context, reminderId, createIfMissing = false)?.let { alarmManager.cancel(it) }
+        } catch (t: Throwable) {
+            android.util.Log.w("PaymentReminderSched", "Failed to cancel alarm for $reminderId", t)
+        }
     }
 
     /** Cancels any existing alarm for [reminderId] and arms a fresh one, [daysBefore] days ahead of [dueDateMillis]. */
@@ -53,6 +57,10 @@ object PaymentReminderScheduler {
         val trigger = (dueDateMillis - daysBefore * 24 * 60 * 60 * 1000L)
             .coerceAtLeast(System.currentTimeMillis() + 1_000L)
         val pending = pendingIntent(context, reminderId, createIfMissing = true) ?: return
-        alarmManager.set(AlarmManager.RTC_WAKEUP, trigger, pending)
+        try {
+            alarmManager.set(AlarmManager.RTC_WAKEUP, trigger, pending)
+        } catch (t: Throwable) {
+            android.util.Log.e("PaymentReminderSched", "Failed to schedule alarm for $reminderId", t)
+        }
     }
 }

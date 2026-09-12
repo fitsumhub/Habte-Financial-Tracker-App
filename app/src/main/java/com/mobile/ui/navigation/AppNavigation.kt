@@ -1,14 +1,16 @@
-﻿package com.mobile.ui.navigation
+package com.mobile.ui.navigation
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,16 +19,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.ui.graphics.graphicsLayer
 import com.mobile.ui.screens.*
-
-
 
 private data class NavItem(
     val route: String,
@@ -35,11 +33,12 @@ private data class NavItem(
 )
 
 private val NAV_ITEMS = listOf(
-    NavItem("analytics", Icons.Default.BarChart, "Analytics"),
-    NavItem("budget", Icons.Default.Savings, "Budget"),
     NavItem("home", Icons.Default.Home, "Home"),
     NavItem("tools", Icons.Default.Build, "Tools"),
-    NavItem("settings", Icons.Default.Settings, "Settings")
+    NavItem("transactions", Icons.AutoMirrored.Filled.ReceiptLong, "Transactions"),
+    NavItem("analytics", Icons.Default.BarChart, "Analytics"),
+    NavItem("budget", Icons.Default.Savings, "Budget"),
+    NavItem("profile", Icons.Default.Person, "Profile")
 )
 
 @Composable
@@ -52,18 +51,12 @@ fun AppNavigation() {
         currentRoute = route
     }
 
-    // A tapped transaction notification always resolves on the Home tab (where
-    // TransactionDetailSheet lives) — jump there if the user was elsewhere.
     val pendingTransactionId by com.mobile.data.FinanceRepository.pendingTransactionId.collectAsState()
     LaunchedEffect(pendingTransactionId) {
         if (pendingTransactionId != null && currentRoute != "home") {
             navigateTo("home")
         }
     }
-
-    // Content transitions handled in Scaffold
-
-
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -72,13 +65,13 @@ fun AppNavigation() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(64.dp)
-                        .shadow(8.dp, RoundedCornerShape(32.dp), clip = false)
+                        .shadow(12.dp, RoundedCornerShape(32.dp), ambientColor = Color(0x33000000), spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
                         .clip(RoundedCornerShape(32.dp))
                         .background(MaterialTheme.colorScheme.surface)
                         .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(32.dp))
@@ -92,7 +85,7 @@ fun AppNavigation() {
                         val unselectedTint = MaterialTheme.colorScheme.onSurfaceVariant
                         val selectedBg = MaterialTheme.colorScheme.primary
                         val iconTint by animateColorAsState(
-                            if (selected) Color.White else unselectedTint,
+                            if (selected) MaterialTheme.colorScheme.onPrimary else unselectedTint,
                             label = "iconTint"
                         )
 
@@ -104,21 +97,14 @@ fun AppNavigation() {
                         val interactionSource = remember { MutableInteractionSource() }
                         val isPressed by interactionSource.collectIsPressedAsState()
                         val scale by animateFloatAsState(
-                            targetValue = if (isPressed) 0.9f else 1.0f,
+                            targetValue = if (isPressed) 0.92f else 1.0f,
                             animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
                             label = "buttonScale"
                         )
 
                         Box(
-                            // BUG FIX: weight(1f) forced every item — selected or not — into
-                            // an equal fixed-width slice of the row, so the label that appears
-                            // on the selected item (e.g. "Analytics", "Settings") had nowhere to
-                            // expand into and got clipped mid-word ("Ana", "Ho"). widthIn(min)
-                            // keeps unselected items at a comfortable tap-target size while
-                            // letting the selected item grow past it to fit its full label;
-                            // SpaceAround on the parent Row still distributes the slack evenly.
                             modifier = Modifier
-                                .widthIn(min = 56.dp)
+                                .widthIn(min = 46.dp)
                                 .fillMaxHeight()
                                 .graphicsLayer {
                                     scaleX = scale
@@ -135,7 +121,7 @@ fun AppNavigation() {
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(boxBgColor)
-                                    .padding(horizontal = if (selected) 14.dp else 10.dp, vertical = 10.dp),
+                                    .padding(horizontal = if (selected) 14.dp else 8.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
@@ -153,7 +139,7 @@ fun AppNavigation() {
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = item.label,
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onPrimary,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1
@@ -166,28 +152,31 @@ fun AppNavigation() {
                 }
             }
         }
-    ) { innerPadding ->
+    )
+ { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
             when (currentRoute) {
-                "home"      -> HomeScreen(
+                "home"         -> HomeScreen(
                     onNavigateToProfile = { navigateTo("profile") },
-                    onNavigateToTransactionHistory = { navigateTo("transaction_history") },
+                    onNavigateToTransactionHistory = { navigateTo("transactions") },
                     onNavigateToAlerts = { navigateTo("alerts") }
                 )
-                "analytics" -> AnalyticsScreen()
-                "budget"    -> BudgetScreen()
-                "tools"     -> ToolsScreen(onNavigate = { navigateTo(it) })
-                "settings"  -> SettingsScreen(onNavigate = { navigateTo(it) })
-                "profile"   -> ProfileScreen(onBack = { currentRoute = previousRoute })
+                "transactions" -> TransactionHistoryScreen(onBack = { currentRoute = "home" })
+                "analytics"    -> AnalyticsScreen()
+                "budget"       -> BudgetScreen()
+                "profile"      -> ProfileScreen(onBack = { currentRoute = "home" }, onNavigate = { navigateTo(it) })
+                "tools"        -> ToolsScreen(onNavigate = { navigateTo(it) })
+                "settings"     -> SettingsScreen(onNavigate = { navigateTo(it) })
                 "transaction_history" -> TransactionHistoryScreen(onBack = { currentRoute = previousRoute })
-                "alerts"    -> AlertsScreen(onBack = { currentRoute = previousRoute })
-                "security"  -> SecurityScreen(onBack = { currentRoute = previousRoute })
+                "alerts"       -> AlertsScreen(onBack = { currentRoute = previousRoute })
+                "security"     -> SecurityScreen(onBack = { currentRoute = previousRoute })
                 "payment_reminders" -> PaymentRemindersScreen(onBack = { currentRoute = previousRoute })
-                "export_data" -> ExportDataScreen(onBack = { currentRoute = previousRoute })
-                "net_worth" -> NetWorthScreen(onBack = { currentRoute = previousRoute })
+                "export_data"  -> ExportDataScreen(onBack = { currentRoute = previousRoute })
+                "export_financial_statement" -> ExportFinancialStatementScreen(onBack = { currentRoute = previousRoute })
+                "net_worth"    -> NetWorthScreen(onBack = { currentRoute = previousRoute })
                 "notification_capture" -> NotificationCaptureScreen(onBack = { currentRoute = previousRoute })
                 "achievement_certificates" -> AchievementCertificatesScreen(onBack = { currentRoute = previousRoute })
-                "support"   -> SupportScreen(onBack = { currentRoute = previousRoute })
+                "support"      -> SupportScreen(onBack = { currentRoute = previousRoute })
             }
         }
     }

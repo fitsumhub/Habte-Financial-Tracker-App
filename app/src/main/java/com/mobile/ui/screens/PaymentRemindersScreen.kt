@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,12 +36,11 @@ import com.mobile.data.PaymentReminder
 import com.mobile.data.PaymentReminderRepository
 import com.mobile.data.ReminderRepeat
 import com.mobile.data.cycleKeyFor
+import com.mobile.ui.theme.LocalEthiopianColors
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-
-private val RemindersAccent = Color(0xFF6366F1)
 
 data class ReminderCategoryOption(val label: String, val icon: ImageVector, val color: Color)
 
@@ -79,9 +79,6 @@ private fun defaultReminderDueDateMillis(): Long {
 private fun daysUntil(dueDateMillis: Long): Int =
     ((dueDateMillis - System.currentTimeMillis()) / (24 * 60 * 60 * 1000L)).toInt()
 
-// Keeps only digits and, when allowed, a single decimal point — kept as its own private
-// copy rather than reusing ToolsScreen's version, since private top-level declarations
-// aren't visible across files even within the same package.
 private fun sanitizeReminderAmount(raw: String): String {
     val sb = StringBuilder()
     var dotSeen = false
@@ -99,8 +96,8 @@ private fun sanitizeReminderAmount(raw: String): String {
 fun PaymentRemindersScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val colors = LocalEthiopianColors.current
     val reminders by PaymentReminderRepository.reminders.collectAsState()
-
     var editingReminder by remember { mutableStateOf<PaymentReminder?>(null) }
     var showEditor by remember { mutableStateOf(false) }
 
@@ -112,7 +109,7 @@ fun PaymentRemindersScreen(onBack: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(colors.background)
     ) {
         Column(
             modifier = Modifier
@@ -126,12 +123,12 @@ fun PaymentRemindersScreen(onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colors.textPrimary)
                 }
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = "Payment Reminders",
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = colors.textPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
@@ -140,12 +137,12 @@ fun PaymentRemindersScreen(onBack: () -> Unit) {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     openEditor(null)
                 }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add reminder", tint = RemindersAccent)
+                    Icon(Icons.Default.Add, contentDescription = "Add reminder", tint = colors.emeraldPrimary)
                 }
             }
             Text(
                 text = "Bills, rent, loans and subscriptions — never miss a due date again.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = colors.textSecondary,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
                 modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 16.dp)
@@ -179,8 +176,8 @@ fun PaymentRemindersScreen(onBack: () -> Unit) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 openEditor(null)
             },
-            containerColor = RemindersAccent,
-            contentColor = Color.White,
+            containerColor = colors.emeraldPrimary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 20.dp, bottom = 110.dp)
@@ -213,206 +210,131 @@ fun PaymentRemindersScreen(onBack: () -> Unit) {
 
 @Composable
 private fun ReminderEmptyState(onAdd: () -> Unit) {
+    val colors = LocalEthiopianColors.current
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 modifier = Modifier
                     .size(88.dp)
                     .clip(CircleShape)
-                    .background(RemindersAccent.copy(alpha = 0.12f)),
+                    .background(colors.surface)
+                    .border(1.dp, colors.border, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.NotificationsActive,
-                    contentDescription = null,
-                    tint = RemindersAccent,
-                    modifier = Modifier.size(36.dp)
-                )
+                Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = colors.emeraldPrimary, modifier = Modifier.size(40.dp))
             }
             Spacer(modifier = Modifier.height(20.dp))
+            Text("No Payment Reminders", color = colors.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "No reminders yet",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                "Add a reminder for rent, a loan, a subscription or any recurring bill and Habte will notify you before it's due.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                "Track bills, rent, subscriptions, and loans. We'll alert you before they're due.",
+                color = colors.textSecondary,
                 fontSize = 13.sp,
-                lineHeight = 19.sp,
+                lineHeight = 18.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = onAdd,
-                colors = ButtonDefaults.buttonColors(containerColor = RemindersAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = colors.emeraldPrimary),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Add Reminder", fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add First Reminder", fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
 @Composable
-private fun ReminderCard(reminder: PaymentReminder, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
-    val option = reminderCategoryOption(reminder.category)
-    val dueDateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
-    val isPaid = reminder.lastPaidCycle == cycleKeyFor(reminder.dueDateMillis)
+private fun ReminderCard(
+    reminder: PaymentReminder,
+    onClick: () -> Unit,
+    onToggle: (Boolean) -> Unit
+) {
+    val colors = LocalEthiopianColors.current
     val daysLeft = daysUntil(reminder.dueDateMillis)
+    val isOverdue = daysLeft < 0
+    val isDueToday = daysLeft == 0
+    val option = reminderCategoryOption(reminder.category)
+    val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+    val dueDateStr = dateFormat.format(Date(reminder.dueDateMillis))
+    val isPaidThisCycle = reminder.lastPaidCycle == cycleKeyFor(reminder.dueDateMillis)
 
-    val (statusText, statusColor) = when {
-        !reminder.enabled -> "Off" to MaterialTheme.colorScheme.onSurfaceVariant
-        isPaid -> "Paid" to Color(0xFF059669)
-        daysLeft < 0 -> "Overdue" to Color(0xFFDC2626)
-        daysLeft == 0 -> "Due today" to Color(0xFFDC2626)
-        daysLeft <= reminder.daysBefore -> "$daysLeft day${if (daysLeft == 1) "" else "s"} left" to Color(0xFFF59E0B)
-        else -> "$daysLeft days left" to MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val cardBg = colors.surface
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(cardBg)
+            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(option.color.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(option.icon, contentDescription = null, tint = option.color, modifier = Modifier.size(22.dp))
-        }
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = reminder.label,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
-            Text(
-                text = if (reminder.payee.isNotBlank()) "${reminder.category} • ${reminder.payee}" else reminder.category,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(statusColor.copy(alpha = 0.12f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(statusText, color = statusColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    dueDateFormat.format(Date(reminder.dueDateMillis)),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp
-                )
-                if (reminder.amount > 0) {
-                    Spacer(modifier = Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(option.color.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(option.icon, contentDescription = null, tint = option.color, modifier = Modifier.size(24.dp))
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "ETB ${Data.formatBalance(reminder.amount)}",
-                        color = option.color,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
+                        text = reminder.label,
+                        color = colors.textPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (reminder.amount > 0) {
+                        Text(
+                            text = "ETB ${Data.formatBalance(reminder.amount)}",
+                            color = colors.emeraldPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(" · ", color = colors.textMuted)
+                    }
+                    Text(
+                        text = when {
+                            isPaidThisCycle -> "Paid this cycle"
+                            isOverdue -> "Overdue by ${-daysLeft}d ($dueDateStr)"
+                            isDueToday -> "Due today"
+                            daysLeft == 1 -> "Due tomorrow"
+                            else -> "Due in $daysLeft days ($dueDateStr)"
+                        },
+                        color = when {
+                            isPaidThisCycle -> colors.income
+                            isOverdue -> colors.expense
+                            isDueToday || daysLeft <= 2 -> colors.warning
+                            else -> colors.textSecondary
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = if (isOverdue || isDueToday) FontWeight.Bold else FontWeight.Normal
                     )
                 }
             }
+            Spacer(modifier = Modifier.width(8.dp))
+            Switch(
+                checked = reminder.enabled,
+                onCheckedChange = onToggle,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                    checkedTrackColor = colors.emeraldPrimary,
+                    uncheckedTrackColor = colors.surfaceElevated
+                )
+            )
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        Switch(
-            checked = reminder.enabled,
-            onCheckedChange = onToggle,
-            colors = SwitchDefaults.colors(checkedThumbColor = RemindersAccent, checkedTrackColor = RemindersAccent.copy(alpha = 0.5f))
-        )
-    }
-}
-
-@Composable
-private fun ReminderOutlinedField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    modifier: Modifier = Modifier,
-    keyboardType: KeyboardType = KeyboardType.Number
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-        modifier = modifier,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            focusedBorderColor = RemindersAccent,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-        ),
-        shape = RoundedCornerShape(12.dp),
-        singleLine = true
-    )
-}
-
-@Composable
-private fun CategoryChip(option: ReminderCategoryOption, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) option.color else MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            option.icon,
-            contentDescription = null,
-            tint = if (selected) Color.White else option.color,
-            modifier = Modifier.size(16.dp)
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            option.label,
-            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-@Composable
-private fun ReminderSelectableChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) RemindersAccent else MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
-    ) {
-        Text(
-            text = text,
-            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold
-        )
     }
 }
 
@@ -426,244 +348,177 @@ private fun ReminderEditorSheet(
     onMarkPaid: (PaymentReminder) -> Unit
 ) {
     val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
-    val isNew = reminder == null
+    val colors = LocalEthiopianColors.current
+    val isEditing = reminder != null
 
     var label by remember { mutableStateOf(reminder?.label ?: "") }
-    var category by remember { mutableStateOf(reminder?.category ?: ReminderCategories.first().label) }
-    var amountInput by remember {
-        mutableStateOf(if ((reminder?.amount ?: 0.0) > 0) reminder!!.amount.toString() else "")
-    }
-    var payeeInput by remember { mutableStateOf(reminder?.payee ?: "") }
+    var amount by remember { mutableStateOf(reminder?.amount?.takeIf { it > 0 }?.let { Data.formatBalance(it, true) } ?: "") }
+    var category by remember { mutableStateOf(reminder?.category ?: "Utility") }
+    var dueDateMillis by remember { mutableLongStateOf(reminder?.dueDateMillis ?: defaultReminderDueDateMillis()) }
     var repeat by remember { mutableStateOf(reminder?.repeat ?: ReminderRepeat.MONTHLY) }
-    var daysBefore by remember { mutableStateOf(reminder?.daysBefore ?: 3) }
-    var enabled by remember { mutableStateOf(reminder?.enabled ?: true) }
-    var dueDateMillis by remember { mutableStateOf(reminder?.dueDateMillis ?: defaultReminderDueDateMillis()) }
+    var daysBefore by remember { mutableIntStateOf(reminder?.daysBefore ?: 1) }
 
-    val dueDateFormat = remember { SimpleDateFormat("EEE, MMM dd, yyyy", Locale.getDefault()) }
-    val isPaidThisCycle = reminder != null && reminder.lastPaidCycle == cycleKeyFor(dueDateMillis)
+    val dateFormat = SimpleDateFormat("EEE, MMM dd, yyyy", Locale.getDefault())
 
-    fun openDatePicker() {
+    fun pickDate() {
         val cal = Calendar.getInstance().apply { timeInMillis = dueDateMillis }
-        val dialog = DatePickerDialog(
+        DatePickerDialog(
             context,
-            { _, year, month, dayOfMonth ->
-                val picked = Calendar.getInstance().apply {
-                    set(year, month, dayOfMonth, 9, 0, 0)
+            { _, y, m, d ->
+                val newCal = Calendar.getInstance().apply {
+                    set(y, m, d, 9, 0, 0)
                     set(Calendar.MILLISECOND, 0)
                 }
-                dueDateMillis = picked.timeInMillis
+                dueDateMillis = newCal.timeInMillis
             },
-            cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)
-        )
-        dialog.datePicker.minDate = System.currentTimeMillis() - 1_000L
-        dialog.show()
-    }
-
-    fun buildReminder(): PaymentReminder? {
-        val trimmedLabel = label.trim()
-        if (trimmedLabel.isEmpty()) return null
-        return PaymentReminder(
-            id = reminder?.id ?: 0,
-            label = trimmedLabel,
-            category = category,
-            amount = amountInput.toDoubleOrNull() ?: 0.0,
-            payee = payeeInput.trim(),
-            dueDateMillis = dueDateMillis,
-            repeat = repeat,
-            daysBefore = daysBefore,
-            enabled = enabled,
-            lastPaidCycle = reminder?.lastPaidCycle ?: ""
-        )
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        ).show()
     }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = colors.surface
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 36.dp)
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp)
-                .padding(bottom = 40.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    if (isNew) "New Reminder" else "Edit Reminder",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                if (!isNew) {
-                    IconButton(onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onDelete(reminder!!)
-                    }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete reminder", tint = MaterialTheme.colorScheme.error)
-                    }
-                }
-            }
             Text(
-                "Get notified ahead of time, every cycle.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(bottom = 16.dp)
+                text = if (isEditing) "Edit Payment Reminder" else "New Payment Reminder",
+                color = colors.textPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
             )
 
-            ReminderOutlinedField(
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
                 value = label,
                 onValueChange = { label = it },
-                placeholder = "What's this for? (e.g. Rent, Netflix)",
-                keyboardType = KeyboardType.Text,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                label = { Text("What is this for?", color = colors.textSecondary) },
+                placeholder = { Text("e.g. Electricity, Apartment Rent", color = colors.textMuted) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = colors.surfaceElevated,
+                    unfocusedContainerColor = colors.surfaceElevated,
+                    focusedBorderColor = colors.emeraldPrimary,
+                    unfocusedBorderColor = colors.border,
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary
+                ),
+                shape = RoundedCornerShape(12.dp)
             )
 
-            Text(
-                "Category",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 8.dp)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { amount = sanitizeReminderAmount(it) },
+                label = { Text("Amount (ETB) · Optional", color = colors.textSecondary) },
+                placeholder = { Text("0.00", color = colors.textMuted) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = colors.surfaceElevated,
+                    unfocusedContainerColor = colors.surfaceElevated,
+                    focusedBorderColor = colors.emeraldPrimary,
+                    unfocusedBorderColor = colors.border,
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary
+                ),
+                shape = RoundedCornerShape(12.dp)
             )
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-            ) {
-                items(ReminderCategories) { option ->
-                    CategoryChip(option, selected = category == option.label) {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        category = option.label
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text("Category", color = colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(ReminderCategories) { opt ->
+                    val isSel = opt.label == category
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSel) colors.emeraldPrimary else colors.surfaceElevated)
+                            .border(1.dp, if (isSel) colors.emeraldPrimary else colors.border, RoundedCornerShape(12.dp))
+                            .clickable { category = opt.label }
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(opt.icon, contentDescription = null, tint = if (isSel) MaterialTheme.colorScheme.onPrimary else opt.color, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(opt.label, color = if (isSel) MaterialTheme.colorScheme.onPrimary else colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 16.dp)) {
-                ReminderOutlinedField(
-                    value = amountInput,
-                    onValueChange = { amountInput = sanitizeReminderAmount(it) },
-                    placeholder = "Amount (ETB)",
-                    modifier = Modifier.weight(1f)
-                )
-                ReminderOutlinedField(
-                    value = payeeInput,
-                    onValueChange = { payeeInput = it },
-                    placeholder = "Payee (optional)",
-                    keyboardType = KeyboardType.Text,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                "Due date",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            Row(
+            Text("Due Date", color = colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .clickable { openDatePicker() }
-                    .padding(14.dp)
-                    .padding(bottom = 2.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .background(colors.surfaceElevated)
+                    .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                    .clickable { pickDate() }
+                    .padding(16.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = RemindersAccent, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(dueDateFormat.format(Date(dueDateMillis)), color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                }
-                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                "Repeat",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 16.dp)) {
-                ReminderRepeatOptions.forEach { (value, text) ->
-                    ReminderSelectableChip(text, selected = repeat == value) {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        repeat = value
-                    }
+                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = colors.emeraldPrimary, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(dateFormat.format(Date(dueDateMillis)), color = colors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text("Change", color = colors.emeraldPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
-            Text(
-                "Remind me",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 20.dp)) {
-                ReminderDaysBeforeOptions.forEach { d ->
-                    val text = if (d == 0) "Same day" else "$d day${if (d == 1) "" else "s"} before"
-                    ReminderSelectableChip(text, selected = daysBefore == d) {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        daysBefore = d
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Enabled", color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Turn off to pause without losing these details", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                }
-                Switch(
-                    checked = enabled,
-                    onCheckedChange = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        enabled = it
-                    },
-                    colors = SwitchDefaults.colors(checkedThumbColor = RemindersAccent, checkedTrackColor = RemindersAccent.copy(alpha = 0.5f))
-                )
-            }
-
-            if (!isNew) {
-                OutlinedButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onMarkPaid(reminder!!)
-                    },
-                    enabled = !isPaidThisCycle,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-                ) {
-                    Text(if (isPaidThisCycle) "Already marked as paid" else "Mark this cycle as paid")
-                }
-            }
+            Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    val built = buildReminder()
-                    if (built == null) {
-                        Toast.makeText(context, "Give this reminder a name first", Toast.LENGTH_SHORT).show()
-                    } else {
-                        onSave(built)
+                    if (label.isBlank()) {
+                        Toast.makeText(context, "Please enter a reminder label", Toast.LENGTH_SHORT).show()
+                        return@Button
                     }
+                    val item = PaymentReminder(
+                        id = reminder?.id ?: 0L,
+                        label = label.trim(),
+                        amount = amount.toDoubleOrNull() ?: 0.0,
+                        category = category,
+                        payee = "",
+                        dueDateMillis = dueDateMillis,
+                        repeat = repeat,
+                        daysBefore = daysBefore,
+                        enabled = true,
+                        lastPaidCycle = reminder?.lastPaidCycle ?: ""
+                    )
+                    onSave(item)
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = RemindersAccent),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = colors.emeraldPrimary),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Text(if (isNew) "Add Reminder" else "Save Changes", fontWeight = FontWeight.Bold)
+                Text(if (isEditing) "Save Changes" else "Create Reminder", fontWeight = FontWeight.Bold)
+            }
+
+            if (isEditing) {
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    onClick = { onDelete(reminder) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Delete Reminder", color = colors.expense, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

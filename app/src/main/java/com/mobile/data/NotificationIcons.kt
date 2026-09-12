@@ -19,21 +19,25 @@ enum class NotificationGlyph { UP, DOWN, DOT }
 object NotificationIcons {
     private const val SIZE_PX = 128
 
-    fun build(colorArgb: Int, glyph: NotificationGlyph): Bitmap {
-        val bitmap = Bitmap.createBitmap(SIZE_PX, SIZE_PX, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val center = SIZE_PX / 2f
+    fun build(colorArgb: Int, glyph: NotificationGlyph): Bitmap? {
+        return try {
+            val bitmap = Bitmap.createBitmap(SIZE_PX, SIZE_PX, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val center = SIZE_PX / 2f
 
-        val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colorArgb }
-        canvas.drawCircle(center, center, center, circlePaint)
+            val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colorArgb }
+            canvas.drawCircle(center, center, center, circlePaint)
 
-        val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        when (glyph) {
-            NotificationGlyph.UP -> canvas.drawPath(trianglePath(pointingUp = true), glyphPaint)
-            NotificationGlyph.DOWN -> canvas.drawPath(trianglePath(pointingUp = false), glyphPaint)
-            NotificationGlyph.DOT -> canvas.drawCircle(center, center, SIZE_PX * 0.16f, glyphPaint)
+            val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+            when (glyph) {
+                NotificationGlyph.UP -> canvas.drawPath(trianglePath(pointingUp = true), glyphPaint)
+                NotificationGlyph.DOWN -> canvas.drawPath(trianglePath(pointingUp = false), glyphPaint)
+                NotificationGlyph.DOT -> canvas.drawCircle(center, center, SIZE_PX * 0.16f, glyphPaint)
+            }
+            bitmap
+        } catch (t: Throwable) {
+            null
         }
-        return bitmap
     }
 
     private fun trianglePath(pointingUp: Boolean): Path {

@@ -11,6 +11,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -49,7 +51,7 @@ fun SupportScreen(onBack: () -> Unit) {
         Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp).padding(bottom = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Text("Support", color = MaterialTheme.colorScheme.onSurface, fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -108,7 +110,7 @@ fun SupportScreen(onBack: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(10.dp))
             SupportContactRow(
-                icon = Icons.Default.Send,
+                icon = Icons.AutoMirrored.Filled.Send,
                 title = "Telegram",
                 subtitle = "@AplusHustler",
                 color = Color(0xFF0EA5E9),

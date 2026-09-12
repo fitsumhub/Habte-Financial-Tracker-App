@@ -21,7 +21,8 @@ data class CertificateContent(
     val achievementTitle: String,
     val achievementSubtitle: String,
     val dateLabel: String,
-    val template: CertificateTemplate = CertificateTemplate.CLASSIC_GOLD
+    val template: CertificateTemplate = CertificateTemplate.CLASSIC_GOLD,
+    val achievement: CertificateAchievement? = null
 )
 
 /** Resolved colors for one CertificateTemplate — everything else about the layout is shared. */
@@ -62,28 +63,52 @@ object CertificateRenderer {
 
     private fun paletteFor(template: CertificateTemplate): Palette = when (template) {
         CertificateTemplate.CLASSIC_GOLD -> Palette(
-            bgColors = intArrayOf(Color.parseColor("#3730A3"), Color.parseColor("#1E1B4B"), Color.parseColor("#0B0A1F")),
+            bgColors = intArrayOf(Color.parseColor("#1E1B4B"), Color.parseColor("#0F172A"), Color.parseColor("#030712")),
             bgStops = floatArrayOf(0f, 0.55f, 1f),
             accent = Color.parseColor("#FBBF24"),
             accentSoft = Color.parseColor("#80FBBF24"),
-            cream = Color.parseColor("#F5F3FF"),
-            muted = Color.parseColor("#C7C4E8")
+            cream = Color.parseColor("#FDF8E2"),
+            muted = Color.parseColor("#D4D0EA")
+        )
+        CertificateTemplate.ROYAL_EMERALD -> Palette(
+            bgColors = intArrayOf(Color.parseColor("#064E3B"), Color.parseColor("#063327"), Color.parseColor("#021A13")),
+            bgStops = floatArrayOf(0f, 0.55f, 1f),
+            accent = Color.parseColor("#34D399"),
+            accentSoft = Color.parseColor("#8034D399"),
+            cream = Color.parseColor("#ECFDF5"),
+            muted = Color.parseColor("#A7F3D0")
         )
         CertificateTemplate.ETHIOPIAN_HERITAGE -> Palette(
-            bgColors = intArrayOf(Color.parseColor("#0E4A2C"), Color.parseColor("#0A2E1B"), Color.parseColor("#05130B")),
+            bgColors = intArrayOf(Color.parseColor("#4A0E17"), Color.parseColor("#2E0A0F"), Color.parseColor("#130507")),
             bgStops = floatArrayOf(0f, 0.55f, 1f),
             accent = ETHIOPIA_YELLOW,
             accentSoft = Color.parseColor("#80FCDD09"),
-            cream = Color.parseColor("#FDF6E3"),
-            muted = Color.parseColor("#BFDCC7")
+            cream = Color.parseColor("#FFFBEB"),
+            muted = Color.parseColor("#FED7AA")
         )
         CertificateTemplate.BIRR_BANKNOTE -> Palette(
-            bgColors = intArrayOf(Color.parseColor("#0D5A43"), Color.parseColor("#073024"), Color.parseColor("#020F0A")),
+            bgColors = intArrayOf(Color.parseColor("#0F3D2E"), Color.parseColor("#0A2B20"), Color.parseColor("#03120D")),
             bgStops = floatArrayOf(0f, 0.55f, 1f),
             accent = Color.parseColor("#EFC55E"),
             accentSoft = Color.parseColor("#80EFC55E"),
-            cream = Color.parseColor("#F3ECD8"),
-            muted = Color.parseColor("#BFD6CA")
+            cream = Color.parseColor("#F7F2E4"),
+            muted = Color.parseColor("#C4DAD0")
+        )
+        CertificateTemplate.PLATINUM_TITANIUM -> Palette(
+            bgColors = intArrayOf(Color.parseColor("#18181B"), Color.parseColor("#09090B"), Color.parseColor("#000000")),
+            bgStops = floatArrayOf(0f, 0.55f, 1f),
+            accent = Color.parseColor("#E2E8F0"),
+            accentSoft = Color.parseColor("#80E2E8F0"),
+            cream = Color.parseColor("#F8FAFC"),
+            muted = Color.parseColor("#94A3B8")
+        )
+        CertificateTemplate.SOLAR_GOLD -> Palette(
+            bgColors = intArrayOf(Color.parseColor("#78350F"), Color.parseColor("#451A03"), Color.parseColor("#1A0701")),
+            bgStops = floatArrayOf(0f, 0.55f, 1f),
+            accent = Color.parseColor("#F59E0B"),
+            accentSoft = Color.parseColor("#80F59E0B"),
+            cream = Color.parseColor("#FFFBEB"),
+            muted = Color.parseColor("#FDE68A")
         )
     }
 
@@ -100,7 +125,8 @@ object CertificateRenderer {
         y = drawRecipientName(canvas, content.recipientName, palette, y)
         y = drawAchievementBadge(canvas, content.achievementTitle, palette, y)
         y = drawSubtitle(canvas, content.achievementSubtitle, palette, y)
-        drawPeriodStat(canvas, content.period, content.periodLabel, palette, y)
+        y = drawPeriodStat(canvas, content.period, content.periodLabel, palette, y)
+        drawAnalyticsLedger(canvas, content.achievement, palette, y)
         drawFooter(canvas, content.dateLabel, palette)
 
         return bitmap
@@ -115,13 +141,12 @@ object CertificateRenderer {
         }
         canvas.drawRect(0f, 0f, WIDTH.toFloat(), HEIGHT.toFloat(), gradientPaint)
 
-        if (template == CertificateTemplate.BIRR_BANKNOTE) {
+        if (template == CertificateTemplate.BIRR_BANKNOTE || template == CertificateTemplate.ROYAL_EMERALD) {
             drawGuillochePattern(canvas, palette)
-            drawWatermark(canvas, "ETB", palette)
+            drawWatermark(canvas, if (template == CertificateTemplate.BIRR_BANKNOTE) "ETB" else "HABTE", palette)
         }
 
-        // Subtle vignette — a soft radial darkening toward the corners is what separates a flat
-        // color fill from something that reads as printed/engraved with real depth.
+        // Subtle vignette
         val vignettePaint = Paint().apply {
             shader = RadialGradient(
                 CENTER_X, HEIGHT * 0.42f, HEIGHT * 0.85f,
@@ -133,7 +158,6 @@ object CertificateRenderer {
         canvas.drawRect(0f, 0f, WIDTH.toFloat(), HEIGHT.toFloat(), vignettePaint)
     }
 
-    /** Concentric rosette rings with radiating spokes — a proper guilloché "engraving," not just plain circles, anchored in two corners so it reads as a security pattern rather than noise. */
     private fun drawGuillochePattern(canvas: Canvas, palette: Palette) {
         val ringColor = Color.argb(30, Color.red(palette.accent), Color.green(palette.accent), Color.blue(palette.accent))
         val spokeColor = Color.argb(18, Color.red(palette.accent), Color.green(palette.accent), Color.blue(palette.accent))
@@ -156,17 +180,16 @@ object CertificateRenderer {
         }
     }
 
-    /** A large, faint, rotated brand mark drawn behind everything else — the "hold up to the light" watermark banknotes use. */
     private fun drawWatermark(canvas: Canvas, text: String, palette: Palette) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.argb(22, Color.red(palette.cream), Color.green(palette.cream), Color.blue(palette.cream))
-            textSize = 420f
+            textSize = 380f
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
         }
         canvas.save()
         canvas.rotate(-18f, CENTER_X, HEIGHT / 2f)
-        canvas.drawText(text, CENTER_X, HEIGHT / 2f + 140f, paint)
+        canvas.drawText(text, CENTER_X, HEIGHT / 2f + 130f, paint)
         canvas.restore()
     }
 
@@ -188,8 +211,6 @@ object CertificateRenderer {
         }
         canvas.drawRoundRect(RectF(inner, inner, WIDTH - inner, HEIGHT - inner), 20f, 20f, innerPaint)
 
-        // A thin third hairline just inside the double frame — the extra bit of "engraving"
-        // that separates an ornate border from two plain rectangles.
         val hairline = inner + 10f
         val hairlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
@@ -200,8 +221,8 @@ object CertificateRenderer {
 
         when (template) {
             CertificateTemplate.ETHIOPIAN_HERITAGE -> drawTibebBands(canvas, inner)
-            CertificateTemplate.BIRR_BANKNOTE -> drawCornerRosettes(canvas, inner, palette)
-            CertificateTemplate.CLASSIC_GOLD -> drawCornerFlourishes(canvas, inner, palette)
+            CertificateTemplate.BIRR_BANKNOTE, CertificateTemplate.ROYAL_EMERALD -> drawCornerRosettes(canvas, inner, palette)
+            CertificateTemplate.CLASSIC_GOLD, CertificateTemplate.SOLAR_GOLD, CertificateTemplate.PLATINUM_TITANIUM -> drawCornerFlourishes(canvas, inner, palette)
         }
     }
 
@@ -313,45 +334,53 @@ object CertificateRenderer {
     private fun drawHeader(canvas: Canvas, palette: Palette) {
         val wordmarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 46f
+            textSize = 44f
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-            letterSpacing = 0.14f
+            letterSpacing = 0.16f
             setShadowLayer(6f, 0f, 3f, Color.argb(130, 0, 0, 0))
         }
-        canvas.drawText("HABTE", CENTER_X, 150f, wordmarkPaint)
+        canvas.drawText("HABTE EXECUTIVE", CENTER_X, 146f, wordmarkPaint)
 
         val taglinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = palette.accent
-            textSize = 22f
+            textSize = 20f
             textAlign = Paint.Align.CENTER
             typeface = Typeface.DEFAULT
-            letterSpacing = 0.3f
+            letterSpacing = 0.28f
         }
-        canvas.drawText("FINANCIAL TRACKER", CENTER_X, 186f, taglinePaint)
+        canvas.drawText("FINANCIAL GOVERNANCE & LEDGER INTELLIGENCE", CENTER_X, 182f, taglinePaint)
     }
 
     /** Returns the y-coordinate to continue drawing from. */
     private fun drawHeading(canvas: Canvas, palette: Palette): Float {
         val headingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = palette.cream
-            textSize = 58f
+            textSize = 54f
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
             setShadowLayer(8f, 0f, 4f, Color.argb(150, 0, 0, 0))
         }
-        val y = 300f
-        canvas.drawText("CERTIFICATE", CENTER_X, y, headingPaint)
-        canvas.drawText("OF ACHIEVEMENT", CENTER_X, y + 64f, headingPaint)
+        val y = 295f
+        canvas.drawText("CERTIFICATE OF DISTINCTION", CENTER_X, y, headingPaint)
+
+        val subHeadingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = palette.accent
+            textSize = 34f
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+            letterSpacing = 0.12f
+        }
+        canvas.drawText("OFFICIAL FINANCIAL MERIT", CENTER_X, y + 54f, subHeadingPaint)
 
         // Ornamental divider — a center diamond flanked by two lines, instead of one bare line.
         val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = palette.accent
             strokeWidth = 2.5f
         }
-        val dividerY = y + 100f
-        canvas.drawLine(CENTER_X - 110f, dividerY, CENTER_X - 14f, dividerY, dividerPaint)
-        canvas.drawLine(CENTER_X + 14f, dividerY, CENTER_X + 110f, dividerY, dividerPaint)
+        val dividerY = y + 88f
+        canvas.drawLine(CENTER_X - 120f, dividerY, CENTER_X - 14f, dividerY, dividerPaint)
+        canvas.drawLine(CENTER_X + 14f, dividerY, CENTER_X + 120f, dividerY, dividerPaint)
         val diamondPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = palette.accent }
         val diamondPath = Path().apply {
             moveTo(CENTER_X, dividerY - 9f); lineTo(CENTER_X + 9f, dividerY)
@@ -361,12 +390,12 @@ object CertificateRenderer {
 
         val certifiesPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = palette.muted
-            textSize = 28f
+            textSize = 26f
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
         }
-        canvas.drawText("This certifies that", CENTER_X, y + 150f, certifiesPaint)
-        return y + 150f
+        canvas.drawText("This humorous yet completely official credential is conferred upon", CENTER_X, y + 138f, certifiesPaint)
+        return y + 138f
     }
 
     private fun drawPhoto(canvas: Canvas, photo: Bitmap?, recipientName: String, palette: Palette, startY: Float): Float {
@@ -511,11 +540,11 @@ object CertificateRenderer {
         return y
     }
 
-    private fun drawPeriodStat(canvas: Canvas, period: CertificatePeriod, periodLabel: String, palette: Palette, startY: Float) {
-        val y = startY + 30f
+    private fun drawPeriodStat(canvas: Canvas, period: CertificatePeriod, periodLabel: String, palette: Palette, startY: Float): Float {
+        val y = startY + 28f
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = palette.accent
-            textSize = 24f
+            textSize = 22f
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
             letterSpacing = 0.08f
@@ -527,48 +556,155 @@ object CertificateRenderer {
         val halfWidth = paint.measureText(text) / 2f + 24f
         canvas.drawLine(CENTER_X - halfWidth - 30f, y - 8f, CENTER_X - halfWidth, y - 8f, tickPaint)
         canvas.drawLine(CENTER_X + halfWidth, y - 8f, CENTER_X + halfWidth + 30f, y - 8f, tickPaint)
+        return y
     }
 
-    private fun drawFooter(canvas: Canvas, dateLabel: String, palette: Palette) {
-        val dividerY = HEIGHT - 170f
-        val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = palette.accentSoft; strokeWidth = 2f }
-        canvas.drawLine(90f, dividerY, WIDTH - 90f, dividerY, dividerPaint)
+    /** Draws an official verified analytics ledger box directly onto the certificate canvas. */
+    private fun drawAnalyticsLedger(canvas: Canvas, achievement: CertificateAchievement?, palette: Palette, startY: Float): Float {
+        if (achievement == null) return startY + 30f
 
-        drawSunburstSeal(canvas, WIDTH - 170f, dividerY + 70f, palette)
+        val boxTop = startY + 26f
+        val boxHeight = 100f
+        val boxWidth = WIDTH - 220f
+        val boxLeft = 110f
+        val boxRect = RectF(boxLeft, boxTop, boxLeft + boxWidth, boxTop + boxHeight)
+
+        // Background with soft translucent fill
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(95, 0, 0, 0)
+        }
+        canvas.drawRoundRect(boxRect, 18f, 18f, bgPaint)
+
+        // Gold keyline border
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.6f
+            color = palette.accentSoft
+        }
+        canvas.drawRoundRect(boxRect, 18f, 18f, borderPaint)
+
+        // 4 Columns
+        val colWidth = boxWidth / 4f
+        val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1f
+            color = Color.argb(80, Color.red(palette.accentSoft), Color.green(palette.accentSoft), Color.blue(palette.accentSoft))
+        }
+
+        for (i in 1..3) {
+            val divX = boxLeft + i * colWidth
+            canvas.drawLine(divX, boxTop + 14f, divX, boxTop + boxHeight - 14f, dividerPaint)
+        }
 
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = palette.muted
-            textSize = 22f
-            textAlign = Paint.Align.LEFT
+            textSize = 16f
+            textAlign = Paint.Align.CENTER
             typeface = Typeface.DEFAULT
+            letterSpacing = 0.05f
         }
-        canvas.drawText("Generated on", 90f, dividerY + 50f, labelPaint)
-        val dateValuePaint = Paint(labelPaint).apply {
+
+        val valPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
+            textSize = 20f
+            textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
         }
-        canvas.drawText(dateLabel, 90f, dividerY + 80f, dateValuePaint)
 
-        val brandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val accentValPaint = Paint(valPaint).apply {
+            color = palette.accent
+        }
+
+        val items = listOf(
+            "TOTAL INFLOW" to "ETB ${Data.formatBalance(achievement.totalIncome)}",
+            "TOTAL OUTFLOW" to "ETB ${Data.formatBalance(achievement.totalExpense)}",
+            "NET RETAINED" to "ETB ${Data.formatBalance(achievement.netSaved)}",
+            "DISCIPLINE" to "${achievement.disciplineScore}/100"
+        )
+
+        items.forEachIndexed { i, (label, value) ->
+            val colCenterX = boxLeft + (i + 0.5f) * colWidth
+            canvas.drawText(label, colCenterX, boxTop + 36f, labelPaint)
+            val p = if (i == 2 || i == 3) accentValPaint else valPaint
+            canvas.drawText(value, colCenterX, boxTop + 72f, p)
+        }
+
+        return boxTop + boxHeight
+    }
+
+    private fun drawFooter(canvas: Canvas, dateLabel: String, palette: Palette) {
+        val dividerY = HEIGHT - 180f
+        val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = palette.accentSoft; strokeWidth = 2f }
+        canvas.drawLine(90f, dividerY, WIDTH - 90f, dividerY, dividerPaint)
+
+        // Left column: Issue date & Verification security hash
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = palette.muted
             textSize = 20f
             textAlign = Paint.Align.LEFT
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
+            typeface = Typeface.DEFAULT
         }
-        canvas.drawText("Habte Financial Tracker", 90f, HEIGHT - 60f, brandPaint)
+        canvas.drawText("AUTHENTICATION DATE", 90f, dividerY + 44f, labelPaint)
+        val dateValuePaint = Paint(labelPaint).apply {
+            color = Color.WHITE
+            textSize = 24f
+            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
+        }
+        canvas.drawText(dateLabel, 90f, dividerY + 76f, dateValuePaint)
+
+        val uidPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = palette.accentSoft
+            textSize = 17f
+            textAlign = Paint.Align.LEFT
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
+            letterSpacing = 0.08f
+        }
+        canvas.drawText("SECURITY CODE · HBT-OFFICIAL-VERIFIED", 90f, dividerY + 114f, uidPaint)
+
+        // Center: Official Executive Signature
+        val sigPath = Path().apply {
+            moveTo(CENTER_X - 100f, dividerY + 54f)
+            cubicTo(CENTER_X - 60f, dividerY + 24f, CENTER_X - 40f, dividerY + 74f, CENTER_X, dividerY + 44f)
+            cubicTo(CENTER_X + 30f, dividerY + 18f, CENTER_X + 60f, dividerY + 68f, CENTER_X + 100f, dividerY + 40f)
+        }
+        val sigPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2.4f
+            color = palette.accent
+            strokeCap = Paint.Cap.ROUND
+        }
+        canvas.drawPath(sigPath, sigPaint)
+
+        val sigLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1f
+            color = palette.muted
+        }
+        canvas.drawLine(CENTER_X - 110f, dividerY + 84f, CENTER_X + 110f, dividerY + 84f, sigLinePaint)
+
+        val sigTitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = palette.muted
+            textSize = 18f
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        }
+        canvas.drawText("Chief Financial Reality Officer", CENTER_X, dividerY + 108f, sigTitlePaint)
+
+        // Right column: Wax Sunburst Seal
+        drawSunburstSeal(canvas, WIDTH - 160f, dividerY + 74f, palette)
     }
 
-    /** A wax-seal-style medallion — radiating sunburst rays behind a double ring and checkmark — instead of a bare circle+check, so the "approval stamp" actually reads as official. */
+    /** A wax-seal-style medallion — radiating sunburst rays behind a double ring and checkmark with embossed gold finish. */
     private fun drawSunburstSeal(canvas: Canvas, cx: Float, cy: Float, palette: Palette) {
         val rayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = 3f
+            strokeWidth = 3.5f
             strokeCap = Paint.Cap.ROUND
-            color = Color.argb(160, Color.red(palette.accent), Color.green(palette.accent), Color.blue(palette.accent))
+            color = Color.argb(190, Color.red(palette.accent), Color.green(palette.accent), Color.blue(palette.accent))
         }
-        val rays = 16
-        val innerR = 50f
-        val outerR = 64f
+        val rays = 20
+        val innerR = 48f
+        val outerR = 66f
         for (i in 0 until rays) {
             val angle = Math.toRadians((360.0 / rays) * i)
             val x1 = cx + (innerR * Math.cos(angle)).toFloat()
@@ -585,7 +721,7 @@ object CertificateRenderer {
             color = palette.accent
         }
         canvas.drawCircle(cx, cy, sealRadius, sealPaint)
-        canvas.drawCircle(cx, cy, sealRadius - 10f, sealPaint)
+        canvas.drawCircle(cx, cy, sealRadius - 8f, sealPaint)
         val checkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 5f

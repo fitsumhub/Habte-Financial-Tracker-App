@@ -18,8 +18,13 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
         val appContext = context.applicationContext
-        SettingsRepository.init(appContext)
-        SummaryScheduler.rescheduleAll(appContext, SettingsRepository.summaryFrequencies.value)
+        try {
+            SettingsRepository.init(appContext)
+            FinanceRepository.init(appContext)
+            SummaryScheduler.rescheduleAll(appContext, SettingsRepository.summaryFrequencies.value)
+        } catch (t: Throwable) {
+            android.util.Log.e("BootReceiver", "Error synchronizing state on boot", t)
+        }
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -27,6 +32,8 @@ class BootReceiver : BroadcastReceiver() {
                 AppDatabase.getInstance(appContext).paymentReminderDao().getEnabled().forEach { entity ->
                     PaymentReminderScheduler.scheduleFor(appContext, entity.id, entity.dueDateMillis, entity.daysBefore)
                 }
+            } catch (t: Throwable) {
+                android.util.Log.e("BootReceiver", "Error rescheduling payment reminders on boot", t)
             } finally {
                 pendingResult.finish()
             }

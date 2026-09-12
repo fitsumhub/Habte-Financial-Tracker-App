@@ -45,6 +45,8 @@ class PaymentReminderReceiver : BroadcastReceiver() {
                     dao.updateDueDate(reminderId, next.timeInMillis)
                     PaymentReminderScheduler.scheduleFor(appContext, reminderId, next.timeInMillis, reminder.daysBefore)
                 }
+            } catch (t: Throwable) {
+                android.util.Log.e("PaymentReminderReceiver", "Error handling payment reminder $reminderId", t)
             } finally {
                 pendingResult.finish()
             }

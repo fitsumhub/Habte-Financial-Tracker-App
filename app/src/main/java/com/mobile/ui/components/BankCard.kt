@@ -32,6 +32,7 @@ import com.mobile.data.Bank
 
 
 import com.mobile.data.Data
+import com.mobile.ui.components.HabeshaDotGrid
 
 
 @Composable
@@ -41,10 +42,11 @@ fun BankCard(
     modifier: Modifier = Modifier
 ) {
     val autoHide by com.mobile.data.SettingsRepository.autoHideBalances.collectAsState()
+    val hiddenAccountIds by com.mobile.data.SettingsRepository.hiddenAccountIds.collectAsState()
     var hidden by remember(autoHide) { mutableStateOf(autoHide) }
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val total = remember(bank) { Data.getBankTotal(bank) }
+    val total = remember(bank, hiddenAccountIds) { Data.getBankTotal(bank, hiddenAccountIds) }
     
     // Pressed state animation
     val pressedScale by animateFloatAsState(
@@ -59,12 +61,13 @@ fun BankCard(
             .heightIn(min = 160.dp)
             .scale(pressedScale)
             .shadow(
-                elevation = 8.dp,
+                elevation = 4.dp,
                 shape = RoundedCornerShape(20.dp),
-                ambientColor = Color(0x1A000000),
-                spotColor = Color(0x1A000000)
+                ambientColor = Color(0x33000000),
+                spotColor = Color(0x22000000)
             )
             .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, Color(0xFF252525), RoundedCornerShape(20.dp))
             .background(
                 Brush.linearGradient(
                     listOf(Color(parseColor(bank.colorFrom)), Color(parseColor(bank.colorTo)))
@@ -75,6 +78,15 @@ fun BankCard(
 
 
     ) {
+        // Habesha dot grid — very subtle cultural texture overlay
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .alpha(0.06f)
+        ) {
+            HabeshaDotGrid()
+        }
+
         Column {
             BankLogo(shortName = bank.logoText, size = 42.dp, fontSize = 11.sp, resId = bank.logoResId, domain = bank.domain)
 
@@ -83,14 +95,15 @@ fun BankCard(
             Text(
                 text = bank.shortName,
                 color = Color.White,
-                fontSize = 16.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 0.3.sp
+                letterSpacing = 0.8.sp
             )
 
+            val excludedCount = bank.accounts.count { it.id in hiddenAccountIds }
             Text(
-                text = "${bank.accounts.size} accounts",
-                color = Color(0x8CFFFFFF),
+                text = if (excludedCount > 0) "${bank.accounts.size} accounts ($excludedCount excluded)" else "${bank.accounts.size} accounts",
+                color = if (excludedCount > 0) Color(0xFFFF8A80) else Color(0x8CFFFFFF),
                 fontSize = 11.sp,
                 modifier = Modifier.padding(top = 1.dp, bottom = 10.dp)
             )

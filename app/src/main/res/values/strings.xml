@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">Habte - Personal Finance</string>
+    <string name="widget_spending_digest_title">Weekly Spending Digest</string>
+    <string name="widget_spending_digest_desc">Live weekly budget progress and today\'s total outflow at a glance.</string>
+    <string name="widget_net_worth_title">Net Worth &amp; Financial Health</string>
+    <string name="widget_net_worth_desc">Live total balance, connected bank count, and monthly net flow.</string>
+    <string name="widget_quick_tracker_title">Quick Transaction Tracker</string>
+    <string name="widget_quick_tracker_desc">Slim bar showing your latest activity and transaction amount.</string>
+    <string name="widget_multi_bank_title">Multi-Bank Account Balances</string>
+    <string name="widget_multi_bank_desc">Overview of your top connected bank account balances.</string>
+    <string name="widget_budget_pulse_title">Budget Pulse &amp; Daily Allowance</string>
+    <string name="widget_budget_pulse_desc">Compact lockscreen widget displaying remaining daily allowance.</string>
 </resources>

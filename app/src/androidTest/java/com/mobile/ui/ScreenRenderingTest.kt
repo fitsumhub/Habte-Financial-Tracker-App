@@ -29,6 +29,8 @@ class ScreenRenderingTest {
     fun setup() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         SettingsRepository.init(context)
+        SettingsRepository.setHasSeenOnboarding(true)
+        FinanceRepository.init(context)
         FinanceRepository.clearAll()
     }
 

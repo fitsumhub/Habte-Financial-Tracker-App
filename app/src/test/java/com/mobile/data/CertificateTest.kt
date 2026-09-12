@@ -80,56 +80,113 @@ class CertificateTest {
     }
 
     @Test
-    fun `title is Savings Champion at or above a 30 percent savings rate`() {
+    fun `title is Executive Wealth Whisperer at or above a 30 percent savings rate in overall mastery`() {
         val now = calendarOn(2026, Calendar.AUGUST, 15)
         val transactions = listOf(
             certTx("credit", 1000.0, calendarOn(2026, Calendar.AUGUST, 1)),
             certTx("debit", 600.0, calendarOn(2026, Calendar.AUGUST, 2))
         )
         val result = computeCertificateAchievement(transactions, CertificatePeriod.MONTHLY, now)
-        assertEquals("Savings Champion", result.title)
+        assertEquals("Executive Wealth Whisperer 💼✨", result.title)
     }
 
     @Test
-    fun `title is Steady Saver between 10 and 30 percent savings rate`() {
+    fun `title is Wallet Survival Champion between 15 and 30 percent savings rate`() {
         val now = calendarOn(2026, Calendar.AUGUST, 15)
         val transactions = listOf(
             certTx("credit", 1000.0, calendarOn(2026, Calendar.AUGUST, 1)),
-            certTx("debit", 850.0, calendarOn(2026, Calendar.AUGUST, 2))
+            certTx("debit", 800.0, calendarOn(2026, Calendar.AUGUST, 2))
         )
         val result = computeCertificateAchievement(transactions, CertificatePeriod.MONTHLY, now)
-        assertEquals("Steady Saver", result.title)
+        assertEquals("Wallet Survival Champion 🛡️", result.title)
     }
 
     @Test
-    fun `title is Building Momentum for a small positive savings rate`() {
+    fun `title is Narrowly Escaped Broke for a small positive savings rate`() {
         val now = calendarOn(2026, Calendar.AUGUST, 15)
         val transactions = listOf(
             certTx("credit", 1000.0, calendarOn(2026, Calendar.AUGUST, 1)),
             certTx("debit", 990.0, calendarOn(2026, Calendar.AUGUST, 2))
         )
         val result = computeCertificateAchievement(transactions, CertificatePeriod.MONTHLY, now)
-        assertEquals("Building Momentum", result.title)
+        assertEquals("Narrowly Escaped Broke 😅", result.title)
     }
 
     @Test
-    fun `title is Financial Tracker when spending exceeds income, not a shaming label`() {
+    fun `title is Hero of the Ethiopian Economy when spending exceeds income`() {
         val now = calendarOn(2026, Calendar.AUGUST, 15)
         val transactions = listOf(
             certTx("credit", 500.0, calendarOn(2026, Calendar.AUGUST, 1)),
             certTx("debit", 800.0, calendarOn(2026, Calendar.AUGUST, 2))
         )
         val result = computeCertificateAchievement(transactions, CertificatePeriod.MONTHLY, now)
-        assertEquals("Financial Tracker", result.title)
-        assertTrue(result.subtitle.contains("tracking", ignoreCase = true))
+        assertEquals("Hero of the Ethiopian Economy 📈", result.title)
+        assertTrue(result.subtitle.contains("economy", ignoreCase = true) || result.subtitle.contains("Ethiopian", ignoreCase = true))
     }
 
     @Test
-    fun `title is Tracking Milestone and subtitle is still positive when there are no transactions`() {
+    fun `title is Silent Ghost of the Ledger and subtitle is still positive when there are no transactions`() {
         val now = calendarOn(2026, Calendar.AUGUST, 15)
         val result = computeCertificateAchievement(emptyList(), CertificatePeriod.MONTHLY, now)
-        assertEquals("Tracking Milestone", result.title)
+        assertEquals("Silent Ghost of the Ledger 👻", result.title)
         assertEquals(0, result.transactionCount)
         assertTrue(result.subtitle.isNotBlank())
+    }
+
+    @Test
+    fun `category selection customizes achievement titles and metrics`() {
+        val now = calendarOn(2026, Calendar.AUGUST, 15)
+        val transactions = listOf(
+            certTx("credit", 5000.0, calendarOn(2026, Calendar.AUGUST, 1)),
+            certTx("debit", 1000.0, calendarOn(2026, Calendar.AUGUST, 2))
+        )
+        val savingsRes = computeCertificateAchievement(transactions, CertificatePeriod.MONTHLY, CertificateCategory.SAVINGS_CHAMPION, now)
+        val budgetRes = computeCertificateAchievement(transactions, CertificatePeriod.MONTHLY, CertificateCategory.DISCIPLINED_BUDGET, now)
+
+        assertEquals("Certified Wealth Goblin 🧌💎", savingsRes.title)
+        assertEquals("CEO of 'We Have Food At Home' 🍲", budgetRes.title)
+        assertTrue(savingsRes.disciplineScore > 0)
+    }
+
+    @Test
+    fun `analytics computes largestTransaction, topCategory, and solvencyTier correctly`() {
+        val now = calendarOn(2026, Calendar.AUGUST, 15)
+        val tx1 = Transaction(
+            id = "tx1",
+            title = "Salary",
+            amount = 30000.0,
+            date = certTxDateFormat.format(calendarOn(2026, Calendar.AUGUST, 1).time),
+            type = "credit",
+            bankShortName = "CBE"
+        )
+        val tx2 = Transaction(
+            id = "tx2",
+            title = "Groceries",
+            amount = 4500.0,
+            date = certTxDateFormat.format(calendarOn(2026, Calendar.AUGUST, 5).time),
+            type = "debit",
+            category = "Food & Dining",
+            bankShortName = "CBE"
+        )
+        val tx3 = Transaction(
+            id = "tx3",
+            title = "Snacks",
+            amount = 500.0,
+            date = certTxDateFormat.format(calendarOn(2026, Calendar.AUGUST, 6).time),
+            type = "debit",
+            category = "Food & Dining",
+            bankShortName = "TEL"
+        )
+
+        val result = computeCertificateAchievement(listOf(tx1, tx2, tx3), CertificatePeriod.MONTHLY, CertificateCategory.OVERALL_MASTERY, now)
+
+        assertEquals(30000.0, result.totalIncome, 0.01)
+        assertEquals(5000.0, result.totalExpense, 0.01)
+        assertEquals(25000.0, result.netSaved, 0.01)
+        assertEquals(30000.0, result.largestTransactionAmount, 0.01)
+        assertEquals("Food & Dining", result.topCategory)
+        assertEquals("Prime Solvency", result.solvencyTier)
+        assertEquals(6.0, result.solvencyRatio, 0.01)
+        assertTrue(result.disciplineScore in 10..100)
     }
 }

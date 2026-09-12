@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.fitsumhub.habtetracker",
+      "sha256_cert_fingerprints":
+        ["D5:7D:11:91:12:B0:02:E0:AD:97:2D:48:3F:F9:32:3E:B7:B6:A8:4C:2C:59:AA:13:36:36:06:9A:CB:1B:F9:B4"]
+    }
+  }
+]
+

@@ -25,24 +25,42 @@ object AdMobConsent {
      * "no ad" rather than stalling anything.
      */
     fun gatherConsent(activity: Activity, onComplete: () -> Unit) {
-        val params = ConsentRequestParameters.Builder().build()
-        val consentInformation = UserMessagingPlatform.getConsentInformation(activity)
+        if (activity.isFinishing || activity.isDestroyed) {
+            onComplete()
+            return
+        }
+        try {
+            val params = ConsentRequestParameters.Builder().build()
+            val consentInformation = UserMessagingPlatform.getConsentInformation(activity)
 
-        consentInformation.requestConsentInfoUpdate(
-            activity,
-            params,
-            {
-                UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
-                    if (formError != null) {
-                        Log.w(TAG, "Consent form error (${formError.errorCode}): ${formError.message}")
+            consentInformation.requestConsentInfoUpdate(
+                activity,
+                params,
+                {
+                    if (activity.isFinishing || activity.isDestroyed) {
+                        onComplete()
+                        return@requestConsentInfoUpdate
                     }
+                    try {
+                        UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
+                            if (formError != null) {
+                                Log.w(TAG, "Consent form error (${formError.errorCode}): ${formError.message}")
+                            }
+                            onComplete()
+                        }
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "Error showing consent form", t)
+                        onComplete()
+                    }
+                },
+                { requestError ->
+                    Log.w(TAG, "Consent info update failed (${requestError.errorCode}): ${requestError.message}")
                     onComplete()
                 }
-            },
-            { requestError ->
-                Log.w(TAG, "Consent info update failed (${requestError.errorCode}): ${requestError.message}")
-                onComplete()
-            }
-        )
+            )
+        } catch (t: Throwable) {
+            Log.e(TAG, "Error in gatherConsent", t)
+            onComplete()
+        }
     }
 }

@@ -98,8 +98,7 @@ fun incomeByBank(transactions: List<Transaction>, limit: Int = Int.MAX_VALUE): L
 
 // ── Income vs Expense trend buckets (week/month/year, Gregorian or Ethiopian) ──────────
 
-private val transactionDateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-
+private val transactionDateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.US)
 /** Parses a [Transaction.date] string (formatted "MMM dd, yyyy") into a Calendar, or null if malformed. */
 fun parseTransactionDate(dateStr: String): Calendar? = try {
     val d = transactionDateFormat.parse(dateStr)
@@ -247,9 +246,8 @@ fun yearlyIncomeExpenseSeries(
 
 // ── Net worth trend (Reports & Data > Net Worth Overview) ─────────────────────────────
 
-private val transactionDateTimeFormat = SimpleDateFormat("MMM dd, yyyy hh:mm a", Locale.getDefault())
+private val transactionDateTimeFormat = SimpleDateFormat("MMM dd, yyyy hh:mm a", Locale.US)
 
-/** Parses a transaction's combined [Transaction.date] + [Transaction.time] into epoch millis, or null if either is missing/malformed. */
 fun transactionTimestampMillis(tx: Transaction): Long? =
     if (tx.time.isBlank()) null else try {
         transactionDateTimeFormat.parse("${tx.date} ${tx.time}")?.time

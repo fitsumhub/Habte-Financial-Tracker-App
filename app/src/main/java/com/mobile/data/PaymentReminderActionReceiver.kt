@@ -23,7 +23,11 @@ class PaymentReminderActionReceiver : BroadcastReceiver() {
         if (reminderId <= 0) return
         val appContext = context.applicationContext
 
-        NotificationManagerCompat.from(appContext).cancel(PaymentReminderNotifier.notificationIdFor(reminderId))
+        try {
+            NotificationManagerCompat.from(appContext).cancel(PaymentReminderNotifier.notificationIdFor(reminderId))
+        } catch (t: Throwable) {
+            android.util.Log.e("PaymentReminderAction", "Error cancelling notification", t)
+        }
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -31,11 +35,17 @@ class PaymentReminderActionReceiver : BroadcastReceiver() {
                 val dao = AppDatabase.getInstance(appContext).paymentReminderDao()
                 val entity = dao.getById(reminderId) ?: return@launch
                 dao.markPaid(reminderId, cycleKeyFor(entity.dueDateMillis))
+            } catch (t: Throwable) {
+                android.util.Log.e("PaymentReminderAction", "Error marking reminder paid", t)
             } finally {
                 pendingResult.finish()
             }
         }
 
-        Toast.makeText(appContext, "Marked as paid", Toast.LENGTH_SHORT).show()
+        try {
+            Toast.makeText(appContext, "Marked as paid", Toast.LENGTH_SHORT).show()
+        } catch (t: Throwable) {
+            // Background toast might be restricted on some OEMs
+        }
     }
 }

@@ -7,18 +7,26 @@ import com.mobile.data.db.AppDatabase
 import com.mobile.data.db.toDomain
 import com.mobile.data.db.toEntity
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
 
 object FinanceRepository {
 
     private lateinit var db: AppDatabase
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e("FinanceRepository", "Unhandled coroutine exception in FinanceRepository", throwable)
+    }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + coroutineExceptionHandler)
     private var initialized = false
 
     private val _transactions = MutableStateFlow<List<Transaction>>(emptyList())
@@ -44,68 +52,210 @@ object FinanceRepository {
     // already observes, so transactions/banks/budgets survive process death and app
     // restarts instead of living only in memory. Safe to call more than once — only
     // the first call (from MainActivity.onCreate) takes effect.
+    @Synchronized
     fun init(context: Context) {
-        if (initialized) return
-        initialized = true
-        db = AppDatabase.getInstance(context)
-        scope.launch {
-            db.transactionDao().observeAll().collect { entities ->
-                _transactions.value = entities.map { it.toDomain() }
+        if (initialized && ::db.isInitialized) return
+        try {
+            db = AppDatabase.getInstance(context)
+            initialized = true
+            scope.launch {
+                try {
+                    db.transactionDao().observeAll()
+                        .map { entities -> entities.map { it.toDomain() } }
+                        .distinctUntilChanged()
+                        .collect {
+                            _transactions.value = it
+                            WeeklySpendingWidgetUpdater.updateAllWidgets(context)
+                        }
+                } catch (t: Throwable) {
+                    Log.e("FinanceRepository", "Error observing transactions", t)
+                }
             }
-        }
-        scope.launch {
-            db.bankDao().observeAllWithAccounts().collect { rows ->
-                _banks.value = rows.map { it.toDomain() }
+            scope.launch {
+                try {
+                    db.bankDao().observeAllWithAccounts()
+                        .map { rows -> rows.map { it.toDomain() } }
+                        .distinctUntilChanged()
+                        .collect { _banks.value = it }
+                } catch (t: Throwable) {
+                    Log.e("FinanceRepository", "Error observing banks", t)
+                }
             }
+            scope.launch {
+                try {
+                    db.budgetDao().observeAll()
+                        .map { entities -> entities.map { it.toDomain() } }
+                        .distinctUntilChanged()
+                        .collect {
+                            _budgets.value = it
+                            WeeklySpendingWidgetUpdater.updateAllWidgets(context)
+                        }
+                } catch (t: Throwable) {
+                    Log.e("FinanceRepository", "Error observing budgets", t)
+                }
+            }
+            scope.launch {
+                try {
+                    ensureDefaultPresetsIfEmpty()
+                } catch (t: Throwable) {
+                    Log.e("FinanceRepository", "Error ensuring default presets", t)
+                }
+            }
+        } catch (t: Throwable) {
+            Log.e("FinanceRepository", "Failed to initialize AppDatabase in FinanceRepository", t)
         }
-        scope.launch {
-            db.budgetDao().observeAll().collect { entities ->
-                _budgets.value = entities.map { it.toDomain() }
+    }
+
+    suspend fun ensureDefaultPresetsIfEmpty() = withContext(Dispatchers.IO) {
+        if (!::db.isInitialized) return@withContext
+        val existingBanks = db.bankDao().getAll()
+        if (existingBanks.isEmpty()) {
+            val defaultInstitutions = listOf("cbe", "tele", "boa", "awash")
+            defaultInstitutions.forEach { id ->
+                val preset = Data.PRESET_BANKS.find { it.id == id }
+                if (preset != null) {
+                    db.bankDao().insert(preset.toEntity())
+                    val canonicalKey = AccountDeduplicator.canonicalKey(preset.shortName, null)
+                    val defaultAccount = Account(
+                        id = "acc_${preset.id}_main",
+                        bankId = preset.id,
+                        accountNumber = "•••• 1000",
+                        label = "${preset.shortName} Savings Account",
+                        balance = 0.0,
+                        currency = "ETB",
+                        type = if (preset.id == "tele") AccountType.MOBILE_WALLET else AccountType.SAVINGS
+                    )
+                    db.accountDao().insert(defaultAccount.toEntity(preset.id, canonicalKey))
+                }
             }
         }
     }
 
     fun addBank(bank: Bank) {
-        scope.launch { db.bankDao().insert(bank.toEntity()) }
+        scope.launch {
+            try {
+                if (::db.isInitialized) db.bankDao().insert(bank.toEntity())
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Failed to add bank", t)
+            }
+        }
     }
 
     fun removeBank(bankId: String) {
         scope.launch {
-            val shortName = _banks.value.find { it.id == bankId }?.shortName
-            db.bankDao().deleteById(bankId)
-            if (shortName != null) db.transactionDao().deleteByBank(shortName)
+            try {
+                if (!::db.isInitialized) return@launch
+                val shortName = _banks.value.find { it.id == bankId }?.shortName
+                db.bankDao().deleteById(bankId)
+                if (shortName != null) db.transactionDao().deleteByBank(shortName)
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Failed to remove bank", t)
+            }
         }
     }
 
     fun updateBankColors(bankId: String, colorFrom: String, colorTo: String) {
-        scope.launch { db.bankDao().updateColors(bankId, colorFrom, colorTo) }
+        scope.launch {
+            try {
+                if (::db.isInitialized) db.bankDao().updateColors(bankId, colorFrom, colorTo)
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Failed to update bank colors", t)
+            }
+        }
     }
 
     fun updateAccountNumber(accountId: String, accountNumber: String) {
-        scope.launch { db.accountDao().updateAccountNumber(accountId, accountNumber) }
+        scope.launch {
+            try {
+                if (::db.isInitialized) db.accountDao().updateAccountNumber(accountId, accountNumber)
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Failed to update account number", t)
+            }
+        }
+    }
+
+    fun normalizeAccountIdentifier(raw: String?): String {
+        val value = raw?.trim().orEmpty()
+        if (value.isEmpty()) return "Unknown"
+        val normalized = value.replace(Regex("[^0-9]"), "")
+        if (normalized.isEmpty()) {
+            return if (value.equals("unknown", ignoreCase = true) || value.equals("main", ignoreCase = true)) {
+                "Unknown"
+            } else {
+                value.trim()
+            }
+        }
+
+        val digits = if (normalized.length >= 12 && normalized.startsWith("251")) {
+            "0${normalized.drop(3)}"
+        } else if (normalized.length == 9) {
+            "0$normalized"
+        } else {
+            normalized
+        }
+
+        return digits
+    }
+
+    fun matchAccounts(a: String?, b: String?): Boolean {
+        val leftRaw = a.orEmpty()
+        val rightRaw = b.orEmpty()
+        val left = normalizeAccountIdentifier(leftRaw)
+        val right = normalizeAccountIdentifier(rightRaw)
+
+        if (left == "Unknown" || right == "Unknown") {
+            return left == "Unknown" && right == "Unknown"
+        }
+
+        if (left == right) return true
+
+        val leftMasked = leftRaw.contains("•") || leftRaw.contains("●") || leftRaw.contains("*") || left.length <= 4
+        val rightMasked = rightRaw.contains("•") || rightRaw.contains("●") || rightRaw.contains("*") || right.length <= 4
+
+        if (leftMasked || rightMasked) {
+            val leftSuffix = left.takeLast(4)
+            val rightSuffix = right.takeLast(4)
+            return leftSuffix == rightSuffix
+        }
+
+        return false
     }
 
     // Proper sign-out clears ALL persisted data, not just the in-memory view of it.
     fun clearAll() {
         scope.launch {
-            db.transactionDao().deleteAll()
-            db.accountDao().deleteAll()
-            db.bankDao().deleteAll()
-            db.budgetDao().deleteAll()
+            try {
+                if (::db.isInitialized) {
+                    db.transactionDao().deleteAll()
+                    db.accountDao().deleteAll()
+                    db.bankDao().deleteAll()
+                    db.budgetDao().deleteAll()
+                    SettingsRepository.setLastSmsSyncTimestamp(0L)
+                    ensureDefaultPresetsIfEmpty()
+                }
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Failed to clear all data", t)
+            }
         }
     }
 
     fun addTransaction(transaction: Transaction) {
         scope.launch {
-            // A transaction id is a deterministic hash of the SMS content (see
-            // stableTransactionKey), so a genuinely resent SMS reproduces the exact same id —
-            // if the user already deleted it as a duplicate, don't let it come back.
-            if (db.deletedTransactionDao().getAllIds().contains(transaction.id)) return@launch
-            val account = ensureBankAndAccount(transaction)
-            if (account != null && transaction.balance != null) {
-                db.accountDao().updateBalance(account.id, transaction.balance)
+            try {
+                if (!::db.isInitialized) return@launch
+                // A transaction id is a deterministic hash of the SMS content (see
+                // stableTransactionKey), so a genuinely resent SMS reproduces the exact same id —
+                // if the user already deleted it as a duplicate, don't let it come back.
+                val deletedIds = db.deletedTransactionDao().getAllIds()
+                if (deletedIds.contains(transaction.id)) return@launch
+                val account = ensureBankAndAccount(transaction)
+                if (account != null && transaction.balance != null) {
+                    db.accountDao().updateBalance(account.id, transaction.balance)
+                }
+                db.transactionDao().upsert(transaction.toEntity())
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Failed to add transaction", t)
             }
-            db.transactionDao().upsert(transaction.toEntity())
         }
     }
 
@@ -116,92 +266,174 @@ object FinanceRepository {
     // this delete by re-inserting the identical id.
     fun deleteTransaction(transactionId: String) {
         scope.launch {
-            db.transactionDao().deleteById(transactionId)
-            db.deletedTransactionDao().markDeleted(
-                com.mobile.data.db.DeletedTransactionEntity(transactionId, System.currentTimeMillis())
-            )
+            try {
+                if (!::db.isInitialized) return@launch
+                db.transactionDao().deleteById(transactionId)
+                db.deletedTransactionDao().markDeleted(
+                    com.mobile.data.db.DeletedTransactionEntity(transactionId, System.currentTimeMillis())
+                )
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Failed to delete transaction", t)
+            }
         }
     }
 
     fun updateTransactionCategory(transactionId: String, newCategory: String) {
-        scope.launch { db.transactionDao().updateCategory(transactionId, newCategory) }
+        scope.launch {
+            try {
+                if (::db.isInitialized) db.transactionDao().updateCategory(transactionId, newCategory)
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Failed to update transaction category", t)
+            }
+        }
     }
 
     // Reason is its own field, independent of category — saving a note never
     // overwrites whichever category chip was selected, and vice versa.
     fun updateTransactionReason(transactionId: String, newReason: String) {
-        scope.launch { db.transactionDao().updateReason(transactionId, newReason) }
+        scope.launch {
+            try {
+                if (::db.isInitialized) db.transactionDao().updateReason(transactionId, newReason)
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Failed to update transaction reason", t)
+            }
+        }
     }
 
     fun setBudget(period: String, category: String?, limit: Double) {
         scope.launch {
-            val existing = _budgets.value.find { it.period == period && it.category == category }
-            db.budgetDao().upsert(
-                Budget(id = existing?.id ?: 0, period = period, category = category, limit = limit).toEntity()
-            )
+            try {
+                if (!::db.isInitialized) return@launch
+                val existing = _budgets.value.find { it.period == period && it.category == category }
+                db.budgetDao().upsert(
+                    Budget(id = existing?.id ?: 0, period = period, category = category, limit = limit).toEntity()
+                )
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Failed to set budget", t)
+            }
         }
     }
 
     fun deleteBudget(id: Long) {
-        scope.launch { db.budgetDao().delete(id) }
+        scope.launch {
+            try {
+                if (::db.isInitialized) db.budgetDao().delete(id)
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Failed to delete budget", t)
+            }
+        }
     }
 
     // Creates the Bank/Account rows for a transaction's institution if they don't
-    // already exist, so both the historical sync and the live SmsReceiver path always
-    // have a matching account for the transaction to reference. Returns the account
-    // the transaction belongs to (existing or newly created), or null if the SMS
-    // sender didn't match a known institution.
+    // already exist. Uses a stable canonicalKey (bankCode:last4 or bankCode:unknown) as the
+    // single deduplication key — this prevents the "CBE Main Account" + "CBE Account (*6936)"
+    // duplication that occurred when the same physical account was observed across multiple
+    // SMS messages with different levels of account-number visibility.
+    //
+    // The three resolution paths in order of priority:
+    //   1. Canonical key match    → return the existing account directly.
+    //   2. Suffix arriving for    → upgrade the existing Unknown placeholder in place,
+    //      an Unknown placeholder   regardless of how many OTHER suffixed accounts exist.
+    //   3. No existing match      → create a new account with the canonical key set.
     private suspend fun ensureBankAndAccount(tx: Transaction): AccountEntity? {
-        val bankMetadata = Data.PRESET_BANKS.find { it.shortName == tx.bankShortName } ?: return null
-        val institution = InstitutionCatalog.ALL.find { it.shortName == tx.bankShortName }
-        val defaultAccountType = if (institution?.type == InstitutionType.DIGITAL_WALLET) {
-            AccountType.MOBILE_WALLET
-        } else {
-            AccountType.SAVINGS
-        }
+        if (!::db.isInitialized) return null
+        return try {
+            val bankMetadata = Data.PRESET_BANKS.find { it.shortName == tx.bankShortName } ?: return null
+            val institution = InstitutionCatalog.ALL.find { it.shortName == tx.bankShortName }
+            val defaultAccountType = if (institution?.type == InstitutionType.DIGITAL_WALLET) {
+                AccountType.MOBILE_WALLET
+            } else {
+                AccountType.SAVINGS
+            }
 
-        var bankEntity = db.bankDao().findByShortName(tx.bankShortName)
-        if (bankEntity == null) {
-            bankEntity = bankMetadata.copy(id = "${tx.bankShortName.lowercase()}_auto").toEntity()
-            db.bankDao().insert(bankEntity)
-        }
+            var bankEntity = db.bankDao().findByShortName(tx.bankShortName)
+            if (bankEntity == null) {
+                bankEntity = bankMetadata.copy(id = "${tx.bankShortName.lowercase()}_auto").toEntity()
+                db.bankDao().insert(bankEntity)
+            }
 
-        val actualSuffix = tx.accountSuffix ?: "Main"
-        val existingAccounts = db.accountDao().getForBank(bankEntity.id)
-        val match = existingAccounts.find {
-            (it.accountNumber != "Unknown" && it.accountNumber.takeLast(4) == actualSuffix) ||
-                (it.accountNumber == "Unknown" && actualSuffix == "Main")
-        }
-        if (match != null) return match
+            val incomingKey = AccountDeduplicator.canonicalKey(tx.bankShortName, tx.accountSuffix)
 
-        val newAccount = Account(
-            id = "acc_${tx.bankShortName}_${actualSuffix}_${System.currentTimeMillis()}",
-            bankId = bankEntity.id,
-            accountNumber = if (tx.accountSuffix != null) "•••• ${tx.accountSuffix}" else "Unknown",
-            label = if (tx.accountSuffix != null) "${tx.bankShortName} Account (*${tx.accountSuffix})" else "${tx.bankShortName} Main Account",
-            balance = tx.balance ?: 0.0,
-            currency = "ETB",
-            type = defaultAccountType
-        )
-        val entity = newAccount.toEntity(bankEntity.id)
-        db.accountDao().insert(entity)
-        return entity
+            // ── Path 1: canonical key already known ──────────────────────────────
+            val exactMatch = db.accountDao().findByCanonicalKey(bankEntity.id, incomingKey)
+            if (exactMatch != null) return exactMatch
+
+            // ── Path 2: incoming SMS has a real suffix, but only an Unknown        ──
+            //    placeholder exists for this bank. Upgrade it instead of duplicating.
+            if (tx.accountSuffix != null) {
+                val unknownKey = AccountDeduplicator.canonicalKey(tx.bankShortName, null)
+                val placeholder = db.accountDao().findByCanonicalKey(bankEntity.id, unknownKey)
+                if (placeholder != null) {
+                    // Ensure no account with incomingKey already exists before upgrading the placeholder
+                    val existingAccount = db.accountDao().findByCanonicalKey(bankEntity.id, incomingKey)
+                    if (existingAccount != null) return existingAccount
+
+                    val newAccountNumber = "•••• ${tx.accountSuffix}"
+                    val newLabel = "${tx.bankShortName} Account (*${tx.accountSuffix})"
+                    db.accountDao().upgradeToSuffixed(
+                        id = placeholder.id,
+                        accountNumber = newAccountNumber,
+                        label = newLabel,
+                        canonicalKey = incomingKey
+                    )
+                    return placeholder.copy(
+                        accountNumber = newAccountNumber,
+                        label = newLabel,
+                        canonicalKey = incomingKey
+                    )
+                }
+            }
+
+            // ── Path 3: genuinely new account ────────────────────────────────────
+            val newAccount = Account(
+                id = "acc_${tx.bankShortName}_${incomingKey.replace(":", "_")}_${System.currentTimeMillis()}",
+                bankId = bankEntity.id,
+                accountNumber = if (tx.accountSuffix != null) "•••• ${tx.accountSuffix}" else "Unknown",
+                label = if (tx.accountSuffix != null) "${tx.bankShortName} Account (*${tx.accountSuffix})" else "${tx.bankShortName} Main Account",
+                balance = tx.balance ?: 0.0,
+                currency = "ETB",
+                type = defaultAccountType
+            )
+            val entity = newAccount.toEntity(bankEntity.id, canonicalKey = incomingKey)
+            db.accountDao().insert(entity)
+            entity
+        } catch (t: Throwable) {
+            Log.e("FinanceRepository", "Error ensuring bank/account for tx: ${tx.id}", t)
+            null
+        }
     }
 
-    // Runs on Dispatchers.IO to prevent ANR on main thread. Re-parses the whole SMS
-    // inbox but only ever inserts transactions that aren't already persisted, so a
-    // manual re-sync can pick up messages the live receiver missed without ever
-    // clobbering a category/reason the user already edited.
-    suspend fun syncHistoricalSms(context: Context) = withContext(Dispatchers.IO) {
-        val cursor = context.contentResolver.query(
-            Uri.parse("content://sms/inbox"),
-            arrayOf("address", "body", "date"),
-            null,
-            null,
-            "date DESC"
-        )
+data class SyncResult(
+    val smsScanned: Int,
+    val transactionsParsed: Int,
+    val newTransactionsAdded: Int,
+    val bankCount: Int
+)
+
+    // Runs on Dispatchers.IO to prevent ANR on main thread. Performs ultra-fast
+    // incremental syncing by checking messages since last sync timestamp, or full inbox scan
+    // on initial startup / manual full resync.
+    suspend fun syncHistoricalSms(context: Context, fullResync: Boolean = false): SyncResult = withContext(Dispatchers.IO) {
+        if (!::db.isInitialized) {
+            init(context)
+        }
+        val lastSync = if (fullResync) 0L else SettingsRepository.lastSmsSyncTimestamp.value
+        val selection = if (lastSync > 0L) "date > ?" else null
+        // 60-second safety window to guarantee boundary SMS messages are never dropped
+        val selectionArgs = if (lastSync > 0L) arrayOf((lastSync - 60_000L).coerceAtLeast(0L).toString()) else null
+
+        val cursor = runCatching {
+            context.contentResolver.query(
+                Uri.parse("content://sms/inbox"),
+                arrayOf("address", "body", "date"),
+                selection,
+                selectionArgs,
+                "date DESC"
+            )
+        }.getOrNull()
 
         val newTransactions = mutableListOf<Transaction>()
+        var smsScannedCount = 0
 
         cursor?.use {
             val addressIndex = it.getColumnIndex("address")
@@ -209,6 +441,7 @@ object FinanceRepository {
             val dateIndex = it.getColumnIndex("date")
 
             while (it.moveToNext()) {
+                smsScannedCount++
                 val address = it.getString(addressIndex) ?: continue
                 val body = it.getString(bodyIndex) ?: continue
                 val date = it.getLong(dateIndex)
@@ -220,37 +453,54 @@ object FinanceRepository {
             }
         }
 
-        if (newTransactions.isEmpty()) return@withContext
+        SettingsRepository.setLastSmsSyncTimestamp(System.currentTimeMillis())
 
-        // The full SMS inbox is re-scanned on every call (there's no "since last sync"
-        // filter above), and a transaction id is a deterministic hash of the SMS content —
-        // so re-parsing the same message the user already deleted via Duplicate Check would
-        // reproduce the exact same id and silently undo that delete via insertIgnoringExisting
-        // (a conflict-free id, since the row was removed, is no longer "existing" to ignore).
-        // Drop anything tombstoned before it ever reaches the insert.
-        val deletedIds = db.deletedTransactionDao().getAllIds().toSet()
-        val toInsert = if (deletedIds.isEmpty()) newTransactions else newTransactions.filter { it.id !in deletedIds }
-        if (toInsert.isEmpty()) return@withContext
-
-        // toInsert is ordered newest-first (SQL "date DESC"), so the first balance seen per
-        // account during this pass is its most recent one.
-        val calibratedAccounts = mutableSetOf<String>()
-        toInsert.forEach { tx ->
-            val account = ensureBankAndAccount(tx)
-            if (account != null && tx.balance != null && calibratedAccounts.add(account.id)) {
-                db.accountDao().updateBalance(account.id, tx.balance)
+        var addedCount = 0
+        if (newTransactions.isNotEmpty() && ::db.isInitialized) {
+            try {
+                val deletedIds = db.deletedTransactionDao().getAllIds().toSet()
+                val toInsert = if (deletedIds.isEmpty()) newTransactions else newTransactions.filter { it.id !in deletedIds }
+                addedCount = toInsert.size
+                if (toInsert.isNotEmpty()) {
+                    val calibratedAccounts = mutableSetOf<String>()
+                    toInsert.forEach { tx ->
+                        val account = ensureBankAndAccount(tx)
+                        if (account != null && tx.balance != null && calibratedAccounts.add(account.id)) {
+                            db.accountDao().updateBalance(account.id, tx.balance)
+                        }
+                    }
+                    db.transactionDao().insertIgnoringExisting(toInsert.map { it.toEntity() })
+                }
+            } catch (t: Throwable) {
+                Log.e("FinanceRepository", "Error writing synced transactions to DB", t)
             }
         }
 
-        db.transactionDao().insertIgnoringExisting(toInsert.map { it.toEntity() })
+        ensureDefaultPresetsIfEmpty()
+        WeeklySpendingWidgetUpdater.updateAllWidgets(context)
+
+        val totalBanksCount = if (::db.isInitialized) {
+            try { db.bankDao().getAll().size } catch (t: Throwable) { 0 }
+        } else 0
+        return@withContext SyncResult(
+            smsScanned = smsScannedCount,
+            transactionsParsed = newTransactions.size,
+            newTransactionsAdded = addedCount,
+            bankCount = totalBanksCount
+        )
     }
 
     // Restores transactions from a previously exported JSON backup. Like the SMS sync
     // path, existing rows are left untouched (insert-ignore) so restoring a backup can
     // never overwrite edits made since the backup was taken.
     suspend fun restoreTransactions(items: List<Transaction>) = withContext(Dispatchers.IO) {
-        if (items.isEmpty()) return@withContext
-        items.forEach { ensureBankAndAccount(it) }
-        db.transactionDao().insertIgnoringExisting(items.map { it.toEntity() })
+        if (items.isEmpty() || !::db.isInitialized) return@withContext
+        try {
+            items.forEach { ensureBankAndAccount(it) }
+            db.transactionDao().insertIgnoringExisting(items.map { it.toEntity() })
+        } catch (t: Throwable) {
+            Log.e("FinanceRepository", "Error restoring transactions", t)
+        }
     }
 }
+

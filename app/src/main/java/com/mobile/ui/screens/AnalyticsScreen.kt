@@ -27,7 +27,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.SouthWest
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
@@ -43,8 +43,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mobile.data.Data
 import com.mobile.data.FinanceRepository
+import com.mobile.data.SettingsRepository
 import com.mobile.data.Transaction
 import com.mobile.ui.components.WrappedStoryScreen
+import com.mobile.ui.theme.LocalEthiopianColors
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -57,8 +59,9 @@ private enum class SortOption(val label: String) {
     NEWEST("Newest first"), OLDEST("Oldest first"), HIGHEST("Highest amount"), LOWEST("Lowest amount")
 }
 
-private val IncomeColor = Color(0xFF059669)
-private val ExpenseColor = Color(0xFFDC2626)
+private val IncomeColor  = Color(0xFF00C853)   // Emerald
+private val ExpenseColor = Color(0xFFFF5252)   // Negative / Expense
+private val GoldAccent   = Color(0xFFFFD54F)   // Gold accent (used sparingly)
 private val txDateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
 
 // How many transactions to render up front before requiring a "See More" tap —
@@ -109,11 +112,6 @@ fun AnalyticsScreen() {
     val now = remember { Calendar.getInstance() }
     val currentYear = now.get(Calendar.YEAR)
 
-    // BUG FIX: if the bank behind the active filter chip gets removed (deleted elsewhere in
-    // the app) while it's selected here, selectedBankFilter used to keep holding that
-    // now-nonexistent shortName forever — every list on this screen would silently filter
-    // down to nothing, with no chip highlighted and no indication why. Fall back to "All"
-    // the moment the selected bank disappears from the live bank list.
     LaunchedEffect(banks) {
         if (selectedBankFilter != null && banks.none { it.shortName == selectedBankFilter }) {
             selectedBankFilter = null
@@ -122,10 +120,8 @@ fun AnalyticsScreen() {
 
     val parsedTransactions = remember(transactions) {
         transactions.mapNotNull { tx ->
-            try {
-                val d = txDateFormat.parse(tx.date) ?: return@mapNotNull null
-                ParsedTx(tx, Calendar.getInstance().apply { time = d })
-            } catch (e: Exception) { null }
+            val cal = com.mobile.data.parseTransactionDate(tx.date) ?: return@mapNotNull null
+            ParsedTx(tx, cal)
         }
     }
 
@@ -147,12 +143,6 @@ fun AnalyticsScreen() {
         }
     }
 
-    // Single source of truth for "which bucket is active" — shared between the swipeable
-    // Income vs Expense carousel and the tap-to-select trend chart below it, so the two
-    // stay in sync regardless of which one the user interacts with. Re-keyed on trendBuckets
-    // (not just its size) so switching Week/Month/Year — which changes the bucket count —
-    // always lands back on the most recent period instead of an index that may no longer
-    // make sense for the new bucket list.
     var trendSelectedIndex by remember(trendBuckets) { mutableStateOf(trendBuckets.size - 1) }
 
     val monthDayNets = remember(bankFiltered, displayedMonth, showIncomeOnly, showExpenseOnly) {
@@ -184,8 +174,6 @@ fun AnalyticsScreen() {
         )
     }
 
-    // Resets to the first page whenever the underlying list changes (new month,
-    // filter, or sort) rather than carrying over a stale "showing N of M" count.
     var visibleTransactionCount by remember(bankFiltered, displayedMonth, sortOption, showIncomeOnly, showExpenseOnly) {
         mutableStateOf(TRANSACTIONS_PAGE_SIZE)
     }
@@ -196,17 +184,10 @@ fun AnalyticsScreen() {
         mutableStateOf(BREAKDOWN_PAGE_SIZE)
     }
 
-    // BUG FIX: topSpendingCategories/spendingByBank only ever look at debits. With "Income
-    // only" active, monthTransactions is entirely credits, so those always returned an empty
-    // list — both breakdown cards used to just silently vanish with zero explanation whenever
-    // that filter was on. Switch to the credit-side aggregation (and relabel + recolor the
-    // cards accordingly below) instead of pretending there's nothing to show.
     val breakdownTotal = remember(monthTransactions, showIncomeOnly) {
         if (showIncomeOnly) com.mobile.data.totalCredit(monthTransactions.map { it.tx })
         else com.mobile.data.totalDebit(monthTransactions.map { it.tx })
     }
-    // No limit here — the full breakdown is always computed; BreakdownCard below is what
-    // caps how many rows are actually rendered, via its own "See More".
     val topCategories = remember(monthTransactions, showIncomeOnly) {
         if (showIncomeOnly) com.mobile.data.topIncomeCategories(monthTransactions.map { it.tx })
         else com.mobile.data.topSpendingCategories(monthTransactions.map { it.tx }, limit = Int.MAX_VALUE)
@@ -216,14 +197,20 @@ fun AnalyticsScreen() {
         else com.mobile.data.spendingByBank(monthTransactions.map { it.tx })
     }
 
+    val colors = LocalEthiopianColors.current
+    val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(colors.background)
             .statusBarsPadding()
     ) {
         Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).padding(bottom = 12.dp)) {
-            Text("Analytics", color = MaterialTheme.colorScheme.onSurface, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Column {
+                Text("Analytics", color = colors.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Financial insights & trends", color = colors.textSecondary, fontSize = 13.sp)
+            }
         }
 
         Column(
@@ -233,13 +220,14 @@ fun AnalyticsScreen() {
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 100.dp)
         ) {
-            // Wrapped promo card
+            // Wrapped Promo Card
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.primary)
+                    .background(colors.surface)
+                    .border(1.dp, colors.border, RoundedCornerShape(20.dp))
                     .clickable {
                         if (yearTxCount > 0) showWrapped = true
                         else Toast.makeText(context, "No transactions in $currentYear yet", Toast.LENGTH_SHORT).show()
@@ -248,29 +236,32 @@ fun AnalyticsScreen() {
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x26FFFFFF)),
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(colors.goldAccent.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = colors.goldAccent, modifier = Modifier.size(22.dp))
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Wrapped $currentYear", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("$yearTxCount transactions in $currentYear.", color = Color(0xE6FFFFFF), fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
-                        Text("Tap to view your story", color = Color(0xB3FFFFFF), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Text("Wrapped $currentYear", color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("$yearTxCount transactions in $currentYear", color = colors.textSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                        Text("Tap to view your story", color = colors.emeraldPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
                     }
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White)
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = colors.textSecondary)
                 }
             }
 
-            // Week / Month / Year toggle
+            // Week / Month / Year Toggle
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+                    .background(colors.surface)
+                    .border(1.dp, colors.border, RoundedCornerShape(16.dp))
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -280,14 +271,14 @@ fun AnalyticsScreen() {
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            .background(if (isSelected) colors.emeraldPrimary else Color.Transparent)
                             .clickable { selectedPeriod = period }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = period.label,
-                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (isSelected) onPrimaryColor else colors.textSecondary,
                             fontSize = 13.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
@@ -519,7 +510,7 @@ fun AnalyticsScreen() {
                         modifier = Modifier.clickable { showSortMenu = true },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Sort, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Sort by", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }

@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [TransactionEntity::class, BankEntity::class, AccountEntity::class, BudgetEntity::class, PaymentReminderEntity::class, CertificateEntity::class, DeletedTransactionEntity::class],
-    version = 4,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -89,13 +89,89 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Deduplicate accounts table to prevent unique constraint failures
+                db.execSQL(
+                    """
+                    DELETE FROM accounts 
+                    WHERE id NOT IN (
+                        SELECT id 
+                        FROM accounts 
+                        GROUP BY bankId, accountNumber 
+                        HAVING id = MIN(id)
+                    )
+                    """.trimIndent()
+                )
+                // Add the unique index
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_accounts_bankId_accountNumber` ON `accounts` (`bankId`, `accountNumber`)")
+            }
+        }
+
+        // Migration 5→6: introduces the canonicalKey deduplication column.
+        //
+        // Steps (all in one SQLite transaction):
+        //   1. Add canonicalKey TEXT column (NOT NULL with default '').
+        //   2. Backfill canonicalKey for every existing account row using the account's
+        //      bankShortName + last-4-digits of accountNumber (or ':unknown' if none).
+        //   3. Find every (bankId, canonicalKey=':unknown') placeholder that has a
+        //      corresponding suffixed row for the same bank — those pairs are duplicates.
+        //      Reassign the placeholder's id to the suffixed row, then delete the placeholder.
+        //      (Transactions reference bankShortName+accountSuffix directly, not accountId,
+        //      so no transaction reassignment is needed.)
+        //   4. Add UNIQUE INDEX on (bankId, canonicalKey).
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Add canonicalKey column
+                db.execSQL("ALTER TABLE accounts ADD COLUMN canonicalKey TEXT NOT NULL DEFAULT ''")
+
+                // 2. Backfill: extract last 4 digits from accountNumber.
+                //    accountNumber formats: "•••• 6936", "Unknown", ""
+                //    SUBSTR + LTRIM trick: strip non-digits by taking last chunk after spaces/bullets.
+                //    Simplest portable approach: use CASE on accountNumber content.
+                db.execSQL("""
+                    UPDATE accounts SET canonicalKey = (
+                        SELECT banks.shortName || ':' ||
+                            CASE
+                                WHEN accounts.accountNumber = 'Unknown' OR accounts.accountNumber = '' THEN 'unknown'
+                                ELSE SUBSTR(REPLACE(REPLACE(REPLACE(accounts.accountNumber,'•',''),' ',''),'*',''), -4)
+                            END
+                        FROM banks WHERE banks.id = accounts.bankId
+                    )
+                """.trimIndent())
+
+                // 3. Merge duplicates: for every Unknown placeholder that shares a bankId with
+                //    a suffixed account, the Unknown is the orphan — delete it.
+                //    Transactions are unaffected because they use (bankShortName, accountSuffix)
+                //    columns directly, not the account row's primary key.
+                db.execSQL("""
+                    DELETE FROM accounts
+                    WHERE canonicalKey LIKE '%:unknown'
+                    AND bankId IN (
+                        SELECT DISTINCT bankId FROM accounts
+                        WHERE canonicalKey NOT LIKE '%:unknown' AND canonicalKey != ''
+                    )
+                """.trimIndent())
+
+                // 4. Add UNIQUE INDEX on (bankId, canonicalKey)
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_accounts_bankId_canonicalKey` ON `accounts` (`bankId`, `canonicalKey`)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "habte.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
+                )
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigrationOnDowngrade()
+                .build()
+                .also { instance = it }
             }
     }
 }

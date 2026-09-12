@@ -4,36 +4,91 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import java.util.Calendar
 
 /**
- * Schedules the periodic "spending summary" notification via AlarmManager —
- * deliberately not WorkManager, since this project has no WorkManager dependency
- * yet and adding one requires resolving a new Gradle artifact, which isn't
- * guaranteed to be available in every build environment. Inexact repeating
- * alarms need no special permission and are perfectly adequate for a summary
- * that's fine landing a little early/late.
- *
- * Multiple frequencies can be active at once (e.g. Daily + Weekly) — each gets
- * its own independent alarm, keyed by its own PendingIntent request code, so
- * enabling/disabling one never disturbs another's schedule.
+ * Automatically schedules the periodic "spending summary" notification via AlarmManager.
+ * Calculates exact evening briefing times (e.g., 8:00 PM daily) and re-arms automatically.
  */
 object SummaryScheduler {
     const val EXTRA_FREQUENCY = "extra_frequency"
 
-    val ALL_FREQUENCIES = listOf("Every 12 Hours", "Daily", "Weekly", "Every 15 Days", "Monthly")
+    val ALL_FREQUENCIES = listOf("Daily", "Weekly", "Monthly", "6 Months", "Yearly")
 
     private const val BASE_REQUEST_CODE = 9000
 
-    /** Also used by SummaryNotifier so each frequency's notification has a stable, distinct ID. */
-    fun idFor(frequency: String): Int = BASE_REQUEST_CODE + ALL_FREQUENCIES.indexOf(frequency) + 1
+    private fun normalize(frequency: String): String = when (frequency.trim()) {
+        "Every 12 Hours" -> "Daily"
+        "Every 15 Days" -> "Monthly"
+        "6-Months", "6 Months" -> "6 Months"
+        "Annual", "Yearly" -> "Yearly"
+        else -> frequency.trim()
+    }
 
-    fun intervalMillis(frequency: String): Long? = when (frequency) {
-        "Every 12 Hours" -> 12 * 60 * 60 * 1000L
+    /** Also used by SummaryNotifier so each frequency's notification has a stable, distinct ID. */
+    fun idFor(frequency: String): Int {
+        val normalized = normalize(frequency)
+        val index = ALL_FREQUENCIES.indexOf(normalized)
+        return BASE_REQUEST_CODE + if (index >= 0) index + 1 else 1
+    }
+
+    fun intervalMillis(frequency: String): Long? = when (normalize(frequency)) {
         "Daily" -> 24 * 60 * 60 * 1000L
         "Weekly" -> 7 * 24 * 60 * 60 * 1000L
-        "Every 15 Days" -> 15 * 24 * 60 * 60 * 1000L
         "Monthly" -> 30 * 24 * 60 * 60 * 1000L
+        "6 Months" -> 180 * 24 * 60 * 60 * 1000L
+        "Yearly" -> 365 * 24 * 60 * 60 * 1000L
         else -> null
+    }
+
+    /** Calculates the next calendar trigger time (8:00 PM evening digest). */
+    fun nextScheduledTimeMillis(frequency: String): Long {
+        val now = Calendar.getInstance()
+        val target = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 20) // 8:00 PM Evening Digest
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+        when (normalize(frequency)) {
+            "Daily" -> {
+                if (target.timeInMillis <= now.timeInMillis) {
+                    target.add(Calendar.DAY_OF_YEAR, 1)
+                }
+            }
+            "Weekly" -> {
+                target.set(Calendar.DAY_OF_WEEK, Calendar.SUNDAY)
+                if (target.timeInMillis <= now.timeInMillis) {
+                    target.add(Calendar.WEEK_OF_YEAR, 1)
+                }
+            }
+            "Monthly" -> {
+                target.set(Calendar.DAY_OF_MONTH, target.getActualMaximum(Calendar.DAY_OF_MONTH))
+                if (target.timeInMillis <= now.timeInMillis) {
+                    target.add(Calendar.MONTH, 1)
+                    target.set(Calendar.DAY_OF_MONTH, target.getActualMaximum(Calendar.DAY_OF_MONTH))
+                }
+            }
+            "6 Months" -> {
+                if (target.timeInMillis <= now.timeInMillis) {
+                    target.add(Calendar.MONTH, 6)
+                }
+            }
+            "Yearly" -> {
+                target.set(Calendar.MONTH, Calendar.DECEMBER)
+                target.set(Calendar.DAY_OF_MONTH, 31)
+                if (target.timeInMillis <= now.timeInMillis) {
+                    target.add(Calendar.YEAR, 1)
+                }
+            }
+            else -> {
+                if (target.timeInMillis <= now.timeInMillis) {
+                    target.add(Calendar.DAY_OF_YEAR, 1)
+                }
+            }
+        }
+        return target.timeInMillis
     }
 
     private fun pendingIntent(context: Context, frequency: String, createIfMissing: Boolean): PendingIntent? {
@@ -46,21 +101,46 @@ object SummaryScheduler {
     /** Cancels [frequency]'s alarm, if any. */
     fun cancel(context: Context, frequency: String) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        pendingIntent(context, frequency, createIfMissing = false)?.let { alarmManager.cancel(it) }
+        try {
+            pendingIntent(context, frequency, createIfMissing = false)?.let { alarmManager.cancel(it) }
+        } catch (t: Throwable) {
+            android.util.Log.w("SummaryScheduler", "Failed to cancel alarm for $frequency", t)
+        }
     }
 
-    /** Cancels any existing alarm for [frequency] and starts a fresh one from now. */
+    /** Automatically arms an exact evening alarm for [frequency] and starts recurring schedule. */
     fun schedule(context: Context, frequency: String) {
-        val interval = intervalMillis(frequency) ?: return
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         cancel(context, frequency)
         val pending = pendingIntent(context, frequency, createIfMissing = true) ?: return
-        alarmManager.setInexactRepeating(
-            AlarmManager.RTC,
-            System.currentTimeMillis() + interval,
-            interval,
-            pending
-        )
+        val triggerAt = nextScheduledTimeMillis(frequency)
+        try {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAt,
+                pending
+            )
+        } catch (e: SecurityException) {
+            try {
+                alarmManager.set(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAt,
+                    pending
+                )
+            } catch (t: Throwable) {
+                android.util.Log.e("SummaryScheduler", "Failed to schedule alarm for $frequency", t)
+            }
+        } catch (t: Throwable) {
+            android.util.Log.e("SummaryScheduler", "Failed to schedule alarm for $frequency", t)
+        }
+    }
+
+    /** Immediately triggers a summary notification for the given frequency (0s delay, instant delivery). */
+    fun triggerNow(context: Context, frequency: String = "Daily") {
+        val intent = Intent(context, SummaryAlarmReceiver::class.java).apply {
+            putExtra(EXTRA_FREQUENCY, frequency)
+        }
+        context.sendBroadcast(intent)
     }
 
     /** Enables or disables one frequency without touching any of the others. */

@@ -55,7 +55,11 @@ data class BankEntity(
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("bankId")]
+    indices = [
+        Index("bankId"),
+        Index(value = ["bankId", "accountNumber"], unique = true),
+        Index(value = ["bankId", "canonicalKey"], unique = true)
+    ]
 )
 data class AccountEntity(
     @PrimaryKey val id: String,
@@ -64,7 +68,10 @@ data class AccountEntity(
     val label: String,
     val balance: Double,
     val currency: String,
-    val type: String
+    val type: String,
+    /** Stable deduplication key: "<BANK>:<last4>" or "<BANK>:unknown". Never changes once set. */
+    @ColumnInfo(defaultValue = "")
+    val canonicalKey: String = ""
 )
 
 @Entity(tableName = "budgets")
@@ -98,9 +105,9 @@ fun AccountEntity.toDomain() = Account(
     balance = balance, currency = currency, type = AccountType.valueOf(type)
 )
 
-fun Account.toEntity(bankId: String) = AccountEntity(
+fun Account.toEntity(bankId: String, canonicalKey: String = "") = AccountEntity(
     id = id, bankId = bankId, accountNumber = accountNumber, label = label,
-    balance = balance, currency = currency, type = type.name
+    balance = balance, currency = currency, type = type.name, canonicalKey = canonicalKey
 )
 
 // logoResId/domain are re-resolved from the live catalog rather than trusting the
@@ -110,7 +117,13 @@ fun Account.toEntity(bankId: String) = AccountEntity(
 // the wrong drawable or stay null forever. colorFrom/colorTo/logoText stay persisted
 // since colors are user-customizable via updateBankColors.
 fun BankWithAccounts.toDomain(): Bank {
-    val catalogEntry = InstitutionCatalog.ALL.find { it.id == bank.id }
+    val catalogEntry = InstitutionCatalog.ALL.find {
+        it.id.equals(bank.id, ignoreCase = true) ||
+        it.shortName.equals(bank.shortName, ignoreCase = true) ||
+        it.logoText.equals(bank.logoText, ignoreCase = true) ||
+        it.name.equals(bank.name, ignoreCase = true) ||
+        it.id.equals(bank.shortName, ignoreCase = true)
+    }
     return Bank(
         id = bank.id, name = bank.name, shortName = bank.shortName,
         accounts = accounts.map { it.toDomain() }, colorFrom = bank.colorFrom,

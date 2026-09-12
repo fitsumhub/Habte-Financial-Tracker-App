@@ -1,11 +1,11 @@
-﻿package com.mobile.ui.screens
+package com.mobile.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
@@ -52,7 +52,7 @@ fun SecurityScreen(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
@@ -189,7 +189,7 @@ fun SecuritySettingRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChangePinModal(hasPinSet: Boolean, verifyOldPin: (String) -> Boolean, onClose: () -> Unit, onPinChanged: (String) -> Unit) {
+fun ChangePinModal(hasPinSet: Boolean, verifyOldPin: (String) -> Boolean, onClose: () -> Unit, onPinChanged: (String) -> Unit) {
     var step by remember { mutableStateOf(if (hasPinSet) 1 else 2) } // 1: Old PIN, 2: New PIN, 3: Confirm New PIN
     var oldPinInput by remember { mutableStateOf("") }
     var newPinInput by remember { mutableStateOf("") }
@@ -254,7 +254,7 @@ private fun ChangePinModal(hasPinSet: Boolean, verifyOldPin: (String) -> Boolean
 
             if (errorMessage != null) {
                 Text(
-                    text = errorMessage!!,
+                    text = errorMessage.orEmpty(),
                     color = MaterialTheme.colorScheme.error,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(bottom = 16.dp)

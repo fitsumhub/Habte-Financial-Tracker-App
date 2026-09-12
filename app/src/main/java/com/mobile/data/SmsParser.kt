@@ -9,121 +9,187 @@ object SmsParser {
 
     // Messages describing a transaction that didn't actually complete (rejected/reversed
     // *attempts*, not to be confused with a reversal *refund*, which is a real credit and
-    // is left to the normal credit-keyword path below). Checked before type classification
-    // so a message like "...has been debited... Transaction failed, will be reversed" can't
-    // slip through just because "debited" also appears in it.
+    // is left to the normal credit-keyword path below).
     private val failedTransactionRegex = Regex(
-        "\\b(?:failed|unsuccessful|declined|not\\s+successful|could\\s+not\\s+be\\s+completed|insufficient\\s+(?:balance|funds?))\\b",
+        "\\b(?:failed|unsuccessful|declined|not\\s+successful|could\\s+not\\s+be\\s+completed|insufficient\\s+(?:balance|funds?)|cancelled|canceled|rejected)\\b",
         RegexOption.IGNORE_CASE
     )
 
-    // Messages announcing a transaction that hasn't happened yet (a future-dated standing
-    // order/subscription notice). These use the same "debited"/"credited" vocabulary as a
-    // completed transaction but in the future tense, so they need their own guard rather
-    // than relying on the type-keyword check below. Deliberately narrow to unambiguous
-    // future-tense phrasing only — a message like "Your scheduled payment of ETB 250.00
-    // has been debited" describes a *completed* instance of a standing order ("scheduled"
-    // is just the plan's name there), so a broader "scheduled" keyword match would wrongly
-    // drop a real transaction, which is worse than the rare false-positive this narrower
-    // form might miss.
+    // Messages announcing a transaction that hasn't happened yet (a future-dated standing order/subscription notice).
     private val pendingTransactionRegex = Regex(
         "\\bwill\\s+be\\s+(?:debited|credited|charged)\\b|\\bis\\s+scheduled\\s+to\\s+be\\b",
         RegexOption.IGNORE_CASE
     )
 
+    // Promotional & advertisement texts that are not actual transaction notifications.
+    private val promoRegex = Regex(
+        "\\b(?:win\\b|bonus\\b|subscribe\\s+to|dial\\s+\\*|chance\\s+to\\s+win|promotional|offer\\b|congratulations!\\s+you\\s+have\\s+won)\\b",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Security advisory footers (e.g. "will never ask for your PIN/OTP", "do not share your password")
+    private val securityDisclaimerRegex = Regex(
+        """(?:will\s+never\s+ask|do\s+not\s+share|never\s+share|don'?t\s+share|never\s+disclose)\b.*""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // OTP / PIN verification code regex
+    private val otpRegex = Regex(
+        """(?:otp|one[- ]time password|verification code|security code|pin|password)\b|\bcode\s+has\s+been\s+sent\b|\bsent\s+to\s+your\s+phone\b""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Amount & Currency regexes
+    private const val CURRENCY_WORD = "(?:etb|birr|br\\.?|kes|ksh|ብር)"
+    private val hasMoneyAmountRegex = Regex(
+        """(?:etb|birr|br\.?|kes|ksh|ብር|amount|amt)\s*[:=]?\s*[0-9,]+\.?[0-9]*|[0-9,]+\.?[0-9]*\s*(?:etb|birr|br\.?|kes|ksh|ብር)""",
+        RegexOption.IGNORE_CASE
+    )
+    private val hasTransferRecipientRegex = Regex(
+        """(?:to|for|ለ)\s+(?:\d{9,}|\d{4,}|[a-z0-9*#./-]{3,}\s*\d{4,}|[a-z0-9*#./-]{4,}\s+[a-z0-9*#./-]{3,})""",
+        RegexOption.IGNORE_CASE
+    )
+    private val amountRegex = Regex(
+        """(?:$CURRENCY_WORD|amount[:\s]?of|amount:?|credited\s+with|debited\s+with|transfer\s+of)\s*([0-9,]+\.?[0-9]*)""",
+        RegexOption.IGNORE_CASE
+    )
+    private val amountRegex2 = Regex(
+        """([0-9,]+\.?[0-9]*)\s*(?:$CURRENCY_WORD)""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Balance Regex
+    private val balanceRegex = Regex(
+        """(?:balance\s*(?:is\s+now|is|now)?|balance:?|your\s+balance|available\s+balance\s*(?:is\s+now|is|now)?|current\s+balance|remaining\s+balance|ቀሪ\s+ሂሳብ(?:ዎ)?|ቀሪ\s+ሒሳብ(?:ዎ)?|ያለዎት\s+የ(?:m-pesa)?\s*ቀሪ\s+ሂሳብ(?:ዎ)?|ያለዎት\s+የ(?:m-pesa)?\s*ቀሪ\s+ሒሳብ(?:ዎ)?|ያለዎት\s+ቀሪ|ቀሪዎ|ሂሳብ(?:ዎ)?|ሒሳብ(?:ዎ)?)\s*(?:is\s+now|is|now)?\s*(?:etb|birr|br\.?|kes|ksh|ብር)?\s*([0-9,]+\.?[0-9]*)""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Account Suffix Regexes
+    private val myAccountRegex = Regex(
+        """(?:from\s+your(?:\s+[a-zA-Z\-]+)?\s+account|your(?:\s+[a-zA-Z\-]+)?\s+account|account\s+ending\s+in|credited\s+to\s+account|የአካውንት\s+ቁጥርዎ|የአካውንት\s+ቁጥር|አካውንት\s+ቁጥር|ሒሳብ|ሂሳብ)\s*(?:no\.?|number|:)?\s*['"]?\s*(?:[•*#\.Xx]+)?([0-9Xx*#•.\-]{3,})""",
+        RegexOption.IGNORE_CASE
+    )
+    private val genericAccountRegex = Regex(
+        """(?:a/c|account|acc|wallet)\s*(?:no\.?|number|:)?\s*['"]?\s*(?:[•*#\.Xx]+)?([0-9Xx*#•.\-]{3,})""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Transaction Reference Regex
+    private val referenceRegex = Regex(
+        "(?:ref(?:erence)?(?:\\s*(?:no|number))?|txn\\s*(?:id|no|number)?|trx|transaction\\s*(?:id|no|number)|branchreceipt/|receipt/|\\?id=|\\bid=|ማጣቀሻ(?:\\s*ቁጥር)?|ቁጥር)\\s*(?:is|[:#=-])?\\s*([A-Za-z0-9]{6,30})",
+        RegexOption.IGNORE_CASE
+    )
+
     fun parseMessage(sender: String, body: String, timestamp: Long): Transaction? {
-        // Data-driven institution lookup — see InstitutionCatalog.ALL. Adding a new
-        // bank/wallet there is enough to make it detectable here, no changes needed.
         val institution = InstitutionCatalog.findBySmsSender(sender) ?: return null
         return parseBody(institution, body, timestamp, idPrefix = "sms", sourceKey = sender)
     }
 
-    /**
-     * The actual transaction-detection logic (type, amount, balance, account, counterparty,
-     * category), shared by the SMS path above and NotificationCaptureListenerService's
-     * bank-app-notification path — neither the regexes below nor the categorization rules
-     * care whether the text came from an SMS body or a notification's title+text, only
-     * [institution] (who the message is from) differs by source. [idPrefix] and [sourceKey]
-     * exist so each source can keep its own stable, non-colliding id scheme (see
-     * stableTransactionKey) without this function needing to know which source it's in.
-     */
     fun parseBody(institution: InstitutionProfile, body: String, timestamp: Long, idPrefix: String, sourceKey: String): Transaction? {
-        val lowerBody = body.lowercase()
-        val bankShortName = institution.shortName
+        return try {
+            val lowerBody = body.lowercase()
+            val bankShortName = institution.shortName
 
         if (failedTransactionRegex.containsMatchIn(lowerBody) || pendingTransactionRegex.containsMatchIn(lowerBody)) {
             return null
         }
 
-        // Determine transaction type — "money in"/"money out" is how several bank apps'
-        // own notifications (as opposed to their SMS templates) phrase this directly.
+        // Strip security advisory footers before checking for actual OTP/verification code messages.
+        val cleanedBody = lowerBody.replace(securityDisclaimerRegex, "")
+
+        if (otpRegex.containsMatchIn(cleanedBody)) {
+            return null
+        }
+
+        val hasMoneyAmount = hasMoneyAmountRegex.containsMatchIn(lowerBody)
+        val hasTransferRecipient = hasTransferRecipientRegex.containsMatchIn(lowerBody)
+        val hasTransferSignal = lowerBody.contains("transfer") ||
+            lowerBody.contains("wallet") ||
+            lowerBody.contains("account") ||
+            lowerBody.contains("to ") ||
+            lowerBody.contains("to:") ||
+            lowerBody.contains("for ") ||
+            lowerBody.contains("from ") ||
+            lowerBody.contains("ዝውውር")
+
+        val isTransferLikeDebit = lowerBody.contains("transfer send") ||
+            lowerBody.contains("transfer of") ||
+            lowerBody.contains("money out") ||
+            lowerBody.contains("bundle") ||
+            lowerBody.contains("package") ||
+            lowerBody.contains("ጥቅል") ||
+            lowerBody.contains("የሳፋሪኮም") ||
+            (hasMoneyAmount && (
+                lowerBody.contains("pay") ||
+                lowerBody.contains("paid") ||
+                lowerBody.contains("withdraw") ||
+                lowerBody.contains("purchased") ||
+                lowerBody.contains("purchase") ||
+                lowerBody.contains("charged") ||
+                lowerBody.contains("transferred") ||
+                (hasTransferSignal && (lowerBody.contains("sent") || lowerBody.contains("send"))) ||
+                (hasTransferRecipient && (lowerBody.contains("sent") || lowerBody.contains("send")))
+            ))
+
         val type = when {
             lowerBody.contains("credited") || lowerBody.contains("received") ||
             lowerBody.contains("deposited") || lowerBody.contains("incoming") ||
-            lowerBody.contains("money in") -> "credit"
+            lowerBody.contains("money in") || lowerBody.contains("reversal") || lowerBody.contains("refund") ||
+            lowerBody.contains("ገቢ") || lowerBody.contains("ተቀብለዋል") || lowerBody.contains("ገብቷል") ||
+            lowerBody.contains("ተጨምሯል") || lowerBody.contains("የተጨመረ") || lowerBody.contains("ተመላሽ") -> "credit"
+
             lowerBody.contains("debited") || lowerBody.contains("paid") ||
-            lowerBody.contains("transferred") || lowerBody.contains("withdrawn") ||
+            lowerBody.contains("transferred") || lowerBody.contains("withdraw") ||
             lowerBody.contains("purchase") || lowerBody.contains("charged") ||
-            lowerBody.contains("sent") || lowerBody.contains("money out") -> "debit"
+            isTransferLikeDebit ||
+            lowerBody.contains("ወጪ") || lowerBody.contains("ከፍለዋል") || lowerBody.contains("ልከዋል") ||
+            lowerBody.contains("አስተላልፈዋል") || lowerBody.contains("ተቀንሷል") || lowerBody.contains("የተቀነሰ") ||
+            lowerBody.contains("ተከፍሏል") || lowerBody.contains("money out") -> "debit"
+
             else -> return null
         }
 
-        // BUG FIX: Improved amount regex — handles "ETB 1,234.56", "Birr 500", "amount 100.00"
-        val amountRegex = Regex(
-            """(?:etb|birr|amount[:\s]?of|amount:?|credited\s+with|debited\s+with|transfer\s+of)\s*([0-9,]+\.?[0-9]*)""",
-            RegexOption.IGNORE_CASE
-        )
-        val amountRegex2 = Regex(
-            """([0-9,]+\.?[0-9]*)\s*(?:etb|birr|br\.?)""",
-            RegexOption.IGNORE_CASE
-        )
+        // Exclude pure promotional SMS that don't represent a completed transaction
+        if (promoRegex.containsMatchIn(lowerBody) && !lowerBody.contains("credited") && !lowerBody.contains("debited")) {
+            return null
+        }
+
         val matchResult = amountRegex.find(lowerBody) ?: amountRegex2.find(lowerBody)
 
         val amount = matchResult?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
-            ?: return null  // BUG FIX: return null instead of 0.0 amount to avoid garbage data
+            ?: return null
 
         if (amount <= 0.0) return null
 
         // Extract remaining balance
-        val balanceRegex = Regex(
-            """(?:balance\s*is|balance:?|your\s+balance|available\s+balance|current\s+balance)\s*(?:etb|birr|br\.)?\s*([0-9,]+\.?[0-9]*)""",
-            RegexOption.IGNORE_CASE
-        )
         val balanceMatch = balanceRegex.find(lowerBody)
         val balance = balanceMatch?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
 
-        // Extract Account Suffix (The user's account)
+        // Extract Account Suffix
+        fun extractSuffix(token: String): String {
+            val segments = token.split(Regex("[^0-9]+")).filter { it.isNotEmpty() }
+            return (segments.lastOrNull() ?: token.filter { it.isDigit() }).takeLast(4)
+        }
+
         var accountSuffix: String? = null
-        val myAccountRegex = Regex(
-            "(?:from\\s+your(?:\\s+[a-zA-Z\\-]+)?\\s+account|your(?:\\s+[a-zA-Z\\-]+)?\\s+account|account\\s+ending\\s+in|credited\\s+to\\s+account)\\s*(?:no\\.?|number|:)?\\s*[a-z0-9*#]*([0-9]{4,})",
-            RegexOption.IGNORE_CASE
-        )
         val myMatch = myAccountRegex.find(lowerBody)
         if (myMatch != null) {
-            accountSuffix = myMatch.groupValues[1].takeLast(4)
+            accountSuffix = extractSuffix(myMatch.groupValues[1])
         } else {
-            val genericAccountRegex = Regex(
-                "(?:a/c|account|acc|wallet)\\s*(?:no\\.?|number|:)?\\s*(?:\\.{2,}|\\*+|#+)?([0-9]{4,})",
-                RegexOption.IGNORE_CASE
-            )
             val allMatches = genericAccountRegex.findAll(lowerBody).toList()
             for (match in allMatches) {
                 val index = match.range.first
                 val precedingText = lowerBody.substring(kotlin.math.max(0, index - 30), index)
-                
-                // If it's a debit and preceded by "to", it's likely a destination account, so skip
+
                 if (type == "debit" && precedingText.contains(Regex("\\bto\\b"))) {
                     continue
                 }
-                
-                accountSuffix = match.groupValues[1].takeLast(4)
+
+                accountSuffix = extractSuffix(match.groupValues[1])
                 break
             }
         }
 
-        // Digital wallets (Telebirr, and any future ones) are phone-number based and
-        // don't use multiple distinct sub-accounts, so force a single account per wallet.
-        // This prevents duplicate accounts like "TEL Main Account" and "TEL Account (*9503)".
         if (institution.type == InstitutionType.DIGITAL_WALLET) {
             accountSuffix = null
         }
@@ -135,18 +201,14 @@ object SmsParser {
         val dateStr = sdf.format(Date(timestamp))
         val timeStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(timestamp))
 
+        // Unified transaction ID: tx-<BANK>-<STABLE_KEY>
+        // Converges SMS and App Notifications describing the same financial event into one primary key.
+        val stableKey = stableTransactionKey(bankShortName, body)
+
         return Transaction(
-            // Derived from the message content (bank reference number when the message
-            // states one, otherwise a hash of sourceKey+body) rather than the delivery
-            // timestamp. For SMS specifically: the live SmsReceiver path and the historical
-            // inbox-resync path in FinanceRepository can each observe a slightly different
-            // timestamp for the exact same real SMS (PDU delivery time vs. the inbox's
-            // stored `date` column), which let the old timestamp-based ID create duplicate
-            // transactions when both paths saw the same message. A content-derived ID is
-            // identical either way, so Room's insert-ignore-on-conflict correctly dedupes it.
-            id = "$idPrefix-$bankShortName-${stableTransactionKey(sourceKey, body)}",
+            id = "tx-$bankShortName-$stableKey",
             title = title,
-            amount = amount,  // BUG FIX: Store raw positive amount; UI determines sign via type
+            amount = amount,
             date = dateStr,
             time = timeStr,
             type = type,
@@ -155,11 +217,11 @@ object SmsParser {
             balance = balance,
             accountSuffix = accountSuffix
         )
+        } catch (t: Throwable) {
+            null
+        }
     }
 
-    // BUG FIX: A real sender/receiver name (or stated purpose) in the SMS body always
-    // takes priority over generic keyword buckets like "Salary Deposit"/"Bank Transfer" —
-    // those are only a fallback for messages that don't name who or what the money was for.
     private fun categorizeTitle(lowerBody: String, body: String, type: String, institutionName: String): String {
         extractCounterpartyName(body, type)?.let { return it }
         return when {
@@ -172,65 +234,63 @@ object SmsParser {
             lowerBody.contains("fuel") || lowerBody.contains("petrol") -> "Fuel"
             lowerBody.contains("atm") || lowerBody.contains("withdraw") -> "ATM Withdrawal"
             lowerBody.contains("loan") -> "Loan Payment"
+            lowerBody.contains("transfer") || lowerBody.contains("ዝውውር") -> "Bank Transfer"
+            lowerBody.contains("fee") || lowerBody.contains("maintenance") || lowerBody.contains("charge") -> "Bank Fee"
             lowerBody.contains("salary") || lowerBody.contains("payroll") || Regex("\\bpay\\b").containsMatchIn(lowerBody) -> "Salary Deposit"
-            lowerBody.contains("transfer") -> "Bank Transfer"
             lowerBody.contains("purchase") -> "Purchase"
-            // Fall back to the institution's real name instead of a generic
-            // "Bank Transaction" placeholder when nothing else could be determined.
             else -> institutionName
         }
     }
 
-    // BUG FIX: Instead of a generic "Bank Transaction" fallback, pull the sender/receiver
-    // name out of the SMS body (e.g. "...received from ABEBE KEBEDE", "...transferred to Selam PLC",
-    // "...credited with ETB 500 by ABEBE KEBEDE", "...to account 1**7019 (KIDUS TESSEMA)")
-    // so the transaction list shows who the money moved with.
     private fun extractCounterpartyName(body: String, type: String): String? {
-        // credit messages name the sender after either "from" or "by" depending on the bank
-        // (e.g. BOA: "credited with ETB 500 by Abrham Tefera Mengstie").
-        val keyword = if (type == "credit") "(?:from|by)" else "to"
+        val keyword = if (type == "credit") "(?:from|by|ከ)" else "(?:to|by|at|for|ለ)"
         val nameRegex = Regex(
-            "\\b$keyword\\s+([A-Za-z][A-Za-z .'\\-]{1,40}?)(?=\\s*(?:[.,;:(]|\\bon\\b|\\bat\\b|\\busing\\b|\\bvia\\b|\\bthrough\\b|\\baccount\\b|\\bacc\\b|\\bwallet\\b|\\bbalance\\b|\\d)|$)",
+            "(?:\\b$keyword|\\s+$keyword)\\s+([A-Za-z][A-Za-z .'\\-]{1,40}?)(?=\\s*(?:[.,;:(]|\\bon\\b|\\bat\\b|\\busing\\b|\\bvia\\b|\\bthrough\\b|\\baccount\\b|\\bacc\\b|\\bwallet\\b|\\bbalance\\b|\\d|[\\u1200-\\u137F])|$)",
             RegexOption.IGNORE_CASE
         )
-        nameRegex.find(body)?.groupValues?.get(1)?.trim()?.let { cleanCounterpartyName(it)?.let { name -> return name } }
+        for (matchResult in nameRegex.findAll(body)) {
+            val candidate = matchResult.groupValues.getOrNull(1)?.trim() ?: continue
+            val name = cleanCounterpartyName(candidate) ?: continue
+            return name
+        }
 
-        // Fallback: some banks (e.g. CBE) put the counterparty's name in parentheses after
-        // the destination account number instead — "...to account 1**7019 (Kidus Tessema Girma)."
         val parenRegex = Regex("\\(([A-Za-z][A-Za-z .'\\-]{1,40})\\)")
         val parenName = parenRegex.find(body)?.groupValues?.get(1)?.trim() ?: return null
         return cleanCounterpartyName(parenName)
     }
 
-    // Matches the bank's own transaction reference when the SMS states one explicitly
-    // (e.g. "Ref: FT23198ABCDE", "Transaction ID: 123456789012") — the most reliable
-    // dedup key available, since it's literally what the bank uses to identify the
-    // transaction on their side.
-    private val referenceRegex = Regex(
-        "(?:ref(?:erence)?(?:\\s*(?:no|number))?|txn\\s*id|transaction\\s*(?:id|no|number))\\s*[:#]?\\s*([A-Za-z0-9]{6,20})",
-        RegexOption.IGNORE_CASE
-    )
-
-    // Produces a stable identifier for a given message: the bank's own reference number if
-    // it states one, otherwise a hash of sourceKey+body (sourceKey is the SMS sender
-    // address, or a notification's package name — see parseBody). Either way this is
-    // deterministic for the exact same message regardless of which timestamp the caller
-    // happened to observe — see the comment on Transaction.id in parseBody() for why
-    // that matters.
-    private fun stableTransactionKey(sourceKey: String, body: String): String {
+    private fun stableTransactionKey(bankShortName: String, body: String): String {
         referenceRegex.find(body)?.groupValues?.get(1)?.let { return it }
 
         val normalized = body.trim().lowercase().replace(Regex("\\s+"), " ")
-        val digest = MessageDigest.getInstance("SHA-256").digest("$sourceKey|$normalized".toByteArray())
+        val digest = MessageDigest.getInstance("SHA-256").digest("$bankShortName|$normalized".toByteArray())
         return digest.joinToString("") { "%02x".format(it) }.take(16)
+    }
+
+    private fun extractDisplayAccountSuffix(raw: String): String? {
+        val candidate = raw.trim()
+        if (candidate.isEmpty()) return null
+        val digits = candidate.filter(Char::isDigit)
+        return digits.takeIf { it.isNotEmpty() }?.takeLast(4)
     }
 
     private fun cleanCounterpartyName(rawName: String): String? {
         if (rawName.length < 2 || rawName.any { it.isDigit() }) return null
 
-        val stopWords = setOf("your", "the", "a", "an", "account", "acc", "wallet", "balance", "you")
+        val firstWordStop = setOf(
+            "your", "the", "a", "an", "account", "acc", "wallet", "balance", "you",
+            "dear", "hello", "hi", "respected", "download", "click", "view", "generate",
+            "visit", "check", "open", "see", "link", "more", "choosing"
+        )
+        val anyWordStop = setOf(
+            "bank", "banking", "s.c", "s.c.", "dear", "customer", "thank", "thanks", "regards",
+            "sincerely", "note", "enquiry", "helpdesk", "support", "help", "info", "call", "contact", "details",
+            "telebirr", "using", "service", "services", "app", "payment", "information", "feedback", "receipt", "slip", "fayda", "connect",
+            "more", "choosing"
+        )
         val words = rawName.split(Regex("\\s+")).filter { it.isNotBlank() }
-        if (words.isEmpty() || words.first().lowercase() in stopWords) return null
+        if (words.isEmpty() || words.first().lowercase() in firstWordStop) return null
+        if (words.any { it.lowercase() in anyWordStop }) return null
 
         return words.joinToString(" ") { word ->
             word.lowercase().replaceFirstChar { it.uppercase() }
@@ -247,7 +307,8 @@ object SmsParser {
             "Loan Payment" -> "Loan"
             "Bank Transfer" -> "Transfers"
             "Purchase" -> "Shopping"
-            else -> "Other" // BUG FIX: matches the "Other" == Uncategorized convention used in AnalyticsScreen/WrappedStoryScreen
+            else -> "Other"
         }
     }
 }
+

@@ -9,6 +9,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -74,7 +77,6 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
     var showProfileDialog by remember { mutableStateOf(false) }
     var showTermsDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
-    var showSignOutConfirm by remember { mutableStateOf(false) }
 
     var cacheSize by remember { mutableStateOf(0.0) }
     LaunchedEffect(Unit) {
@@ -108,7 +110,7 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Color(0xFF0F0D0A))
             .statusBarsPadding()
     ) {
         // Header
@@ -119,9 +121,10 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
         ) {
             Text(
                 text = "Settings",
-                color = MaterialTheme.colorScheme.onSurface,
+                color = Color(0xFFD4A017),
                 fontSize = 22.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.5.sp
             )
         }
 
@@ -253,7 +256,7 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingToggleRow(
-                    icon = Icons.Default.Send,
+                    icon = Icons.AutoMirrored.Filled.Send,
                     label = "SMS Alerts",
                     description = "Transaction notifications via SMS",
                     checked = smsAlerts,
@@ -462,7 +465,7 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(start = 56.dp))
                 SettingOptionRow(
-                    icon = Icons.Default.List,
+                    icon = Icons.AutoMirrored.Filled.List,
                     label = "Terms of Service",
                     value = "",
                     onClick = { 
@@ -483,28 +486,6 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
             }
 
             Spacer(modifier = Modifier.height(36.dp))
-
-            // Sign Out Button
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(ExpenseColor.copy(alpha = 0.08f))
-                    .border(1.dp, ExpenseColor.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-                    .clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showSignOutConfirm = true
-                    }
-                    .padding(20.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Sign Out",
-                    color = ExpenseColor,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
 
             // Settings is one of the few screens allowed to show a banner ad (see
             // AdMobConfig.BANNER_ALLOWED_ROUTES) — never a financial-action screen.
@@ -536,7 +517,7 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
     if (showThemeDialog) {
         SelectionDialog(
             title = "Select Theme",
-            options = listOf("Light", "Dark", "System Default"),
+            options = listOf("Light", "Dark", "Binance Pro", "Addis Gold"),
             selected = theme,
             onSelect = { SettingsRepository.setTheme(it) },
             onDismiss = { showThemeDialog = false }
@@ -592,34 +573,6 @@ fun SettingsScreen(onNavigate: (String) -> Unit = {}) {
             onDismiss = { showPrivacyDialog = false }
         )
     }
-
-    if (showSignOutConfirm) {
-        AlertDialog(
-            onDismissRequest = { showSignOutConfirm = false },
-            title = { Text("Sign Out?", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
-            text = { Text("Habte has no cloud account to sign out of — your data stays safely on this device. Signing out just closes the app; reopen it anytime and everything will be exactly as you left it.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(24.dp),
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showSignOutConfirm = false
-                        (context as? android.app.Activity)?.let { activity ->
-                            activity.finishAffinity()
-                            android.os.Process.killProcess(android.os.Process.myPid())
-                        }
-                    }
-                ) {
-                    Text("Close App", color = ExpenseColor, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSignOutConfirm = false }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -644,7 +597,9 @@ private fun ProfileEditDialog(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Name") },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                    // BUG FIX: TextFieldDefaults.outlinedTextFieldColors() is deprecated in
+                    // Material3 — replaced with the current OutlinedTextFieldDefaults.colors().
+                    colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         cursorColor = MaterialTheme.colorScheme.primary,
@@ -656,7 +611,9 @@ private fun ProfileEditDialog(
                     value = email,
                     onValueChange = { email = it },
                     label = { Text("Email") },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                    // BUG FIX: TextFieldDefaults.outlinedTextFieldColors() is deprecated in
+                    // Material3 — replaced with the current OutlinedTextFieldDefaults.colors().
+                    colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         cursorColor = MaterialTheme.colorScheme.primary,
@@ -709,20 +666,31 @@ private fun SettingsGroup(
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column {
-        Text(
-            text = title,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.2.sp,
-            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(18.dp)
+                    .background(Color(0xFFD4A017))
+            )
+            Text(
+                text = title,
+                color = Color(0xFFD4A017),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                modifier = Modifier.padding(start = 10.dp)
+            )
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
+                .background(Color(0xFF1E1812))
+                .border(1.dp, Color(0x22D4A017), RoundedCornerShape(20.dp))
         ) {
             content()
         }
@@ -756,7 +724,7 @@ fun SettingToggleRow(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = Color(0xFFD4A017),
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -782,11 +750,11 @@ fun SettingToggleRow(
             onCheckedChange = { if (enabled) onCheckedChange(it) },
             enabled = enabled,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                checkedThumbColor = Color(0xFF0D0A00),
+                checkedTrackColor = Color(0xFFD4A017),
                 checkedBorderColor = Color.Transparent,
                 uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                uncheckedTrackColor = Color(0xFF2A2218),
                 uncheckedBorderColor = Color.Transparent
             ),
             modifier = Modifier.scale(0.85f)
@@ -820,7 +788,7 @@ fun SettingOptionRow(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = Color(0xFFD4A017),
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -845,7 +813,7 @@ fun SettingOptionRow(
         if (interactive) {
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
-                imageVector = Icons.Default.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "Next",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)

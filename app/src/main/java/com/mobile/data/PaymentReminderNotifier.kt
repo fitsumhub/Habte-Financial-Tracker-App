@@ -28,8 +28,10 @@ object PaymentReminderNotifier {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         if (manager.getNotificationChannel(CHANNEL_ID) != null) return
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Payment Reminders", NotificationManager.IMPORTANCE_DEFAULT).apply {
+            NotificationChannel(CHANNEL_ID, "Payment Reminders", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Reminders ahead of bills and recurring payments you've set up"
+                enableVibration(true)
+                setShowBadge(true)
             }
         )
     }
@@ -87,13 +89,14 @@ object PaymentReminderNotifier {
             .addAction(0, "Mark as Paid", markPaidPendingIntent)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .build()
 
         try {
             NotificationManagerCompat.from(context).notify(notificationId, notification)
-        } catch (e: SecurityException) {
-            // Notification permission not granted — nothing else to do here.
+        } catch (t: Throwable) {
+            android.util.Log.w("PaymentReminderNotifier", "Failed to post payment reminder notification", t)
         }
     }
 }

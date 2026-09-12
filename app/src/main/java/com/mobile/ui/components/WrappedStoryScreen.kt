@@ -23,11 +23,11 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.FactCheck
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.FactCheck
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -85,7 +85,7 @@ private data class MoneyPersona(val title: String, val tagline: String, val icon
 private fun moneyPersonaFor(savingsRate: Double?): MoneyPersona? = when {
     savingsRate == null -> null
     savingsRate >= 30 -> MoneyPersona("The Vault", "You barely touch what comes in — elite-level restraint.", Icons.Filled.Savings)
-    savingsRate >= 15 -> MoneyPersona("The Planner", "Steady and deliberate — always a little ahead of yourself.", Icons.Filled.FactCheck)
+    savingsRate >= 15 -> MoneyPersona("The Planner", "Steady and deliberate — always a little ahead of yourself.", Icons.AutoMirrored.Filled.FactCheck)
     savingsRate >= 0 -> MoneyPersona("The Balancer", "Income and spending move together — you make it work.", Icons.Filled.Balance)
     else -> MoneyPersona("The Spender", "You live in the moment — every birr finds a purpose.", Icons.Filled.Whatshot)
 }
@@ -122,7 +122,7 @@ private fun computeWrappedStats(transactions: List<Transaction>, year: Int): Wra
     yearTx.forEach { (_, cal) -> monthCounts[cal.get(Calendar.MONTH)]++ }
     val busiestMonthIndex = monthCounts.indices.maxByOrNull { monthCounts[it] } ?: 0
 
-    val biggestTx = yearTx.maxByOrNull { it.first.amount }!!.first
+    val biggestTx = yearTx.maxByOrNull { it.first.amount }?.first ?: yearTx.first().first
 
     return WrappedStats(
         txCount = yearTx.size,
@@ -181,19 +181,19 @@ fun WrappedStoryScreen(
 
     val slides = remember(stats) {
         buildList {
-            add(SlideSpec(listOf(Color(0xFF4F46E5), Color(0xFF7C3AED))) { IntroSlide(stats, year) })
-            add(SlideSpec(listOf(Color(0xFF059669), Color(0xFF047857))) {
+            add(SlideSpec(listOf(Color(0xFF4F46E5), Color(0xFF7C3AED), Color(0xFF1E1B4B))) { IntroSlide(stats, year) })
+            add(SlideSpec(listOf(Color(0xFF059669), Color(0xFF047857), Color(0xFF022C22))) {
                 BigStatSlide(
-                    icon = Icons.Filled.TrendingUp,
+                    icon = Icons.AutoMirrored.Filled.TrendingUp,
                     eyebrow = "Money coming in",
                     amount = stats.totalIncome,
                     caption = "flowed into your accounts this year.",
                     extraCaption = stats.topBank?.let { "$it saw the most action — ${stats.topBankCount} transactions." }
                 )
             })
-            add(SlideSpec(listOf(Color(0xFFDC2626), Color(0xFF991B1B))) {
+            add(SlideSpec(listOf(Color(0xFFDC2626), Color(0xFF991B1B), Color(0xFF3F0D12))) {
                 BigStatSlide(
-                    icon = Icons.Filled.TrendingDown,
+                    icon = Icons.AutoMirrored.Filled.TrendingDown,
                     eyebrow = "Money going out",
                     amount = stats.totalExpense,
                     caption = "left your accounts this year.",
@@ -201,14 +201,14 @@ fun WrappedStoryScreen(
                 )
             })
             if (stats.topCategories.isNotEmpty()) {
-                add(SlideSpec(listOf(Color(0xFFDB2777), Color(0xFF9D174D))) { TopCategorySlide(stats) })
+                add(SlideSpec(listOf(Color(0xFFDB2777), Color(0xFF9D174D), Color(0xFF4C0519))) { TopCategorySlide(stats) })
             }
-            add(SlideSpec(listOf(Color(0xFF2563EB), Color(0xFF1E3A8A))) { BusiestMonthSlide(stats) })
-            add(SlideSpec(listOf(Color(0xFFF59E0B), Color(0xFFB45309))) { BiggestTransactionSlide(stats.biggestTx) })
+            add(SlideSpec(listOf(Color(0xFF2563EB), Color(0xFF1E3A8A), Color(0xFF0F172A))) { BusiestMonthSlide(stats) })
+            add(SlideSpec(listOf(Color(0xFFF59E0B), Color(0xFFB45309), Color(0xFF451A03))) { BiggestTransactionSlide(stats.biggestTx) })
             stats.moneyPersona?.let { persona ->
-                add(SlideSpec(listOf(Color(0xFF7C3AED), Color(0xFF4C1D95))) { PersonaSlide(persona) })
+                add(SlideSpec(listOf(Color(0xFF7C3AED), Color(0xFF4C1D95), Color(0xFF2E1065))) { PersonaSlide(persona) })
             }
-            add(SlideSpec(listOf(Color(0xFF4F46E5), Color(0xFF312E81))) {
+            add(SlideSpec(listOf(Color(0xFF4F46E5), Color(0xFF312E81), Color(0xFF111827))) {
                 RecapSlide(stats, year, onShare = { shareWrapped(context, stats, year) }, onDone = onDismiss)
             })
         }
@@ -219,23 +219,29 @@ fun WrappedStoryScreen(
     val progress = remember { Animatable(0f) }
     val slideDurationNanos = 5_000_000_000L
 
-    LaunchedEffect(currentIndex, slides.size) {
+    LaunchedEffect(currentIndex, slides.size, isPaused) {
+        if (currentIndex >= slides.size) return@LaunchedEffect
         progress.snapTo(0f)
+        if (isPaused) return@LaunchedEffect
+
         var lastFrame = withFrameNanos { it }
-        while (true) {
+        while (!isPaused) {
             val frameTime = withFrameNanos { it }
             val dt = frameTime - lastFrame
             lastFrame = frameTime
-            if (!isPaused) {
-                val next = progress.value + dt.toFloat() / slideDurationNanos.toFloat()
-                if (next >= 1f) {
-                    progress.snapTo(1f)
-                    break
-                }
-                progress.snapTo(next)
+            val next = progress.value + dt.toFloat() / slideDurationNanos.toFloat()
+            if (next >= 1f) {
+                progress.snapTo(1f)
+                break
+            }
+            progress.snapTo(next)
+        }
+
+        if (!isPaused) {
+            if (currentIndex < slides.lastIndex) {
+                currentIndex++
             }
         }
-        if (currentIndex < slides.lastIndex) currentIndex++ else onDismiss()
     }
 
     Dialog(
@@ -243,51 +249,49 @@ fun WrappedStoryScreen(
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Full-bleed animated background
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Brush.verticalGradient(slides[currentIndex].gradient))
             )
 
-            // Safe-area slide content
+            GradientOrb(color = Color.White.copy(alpha = 0.08f), offset = 0.15f)
+            GradientOrb(color = Color.White.copy(alpha = 0.10f), offset = 0.70f)
+            GradientOrb(color = Color(0xFF7C3AED).copy(alpha = 0.14f), offset = 0.42f)
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
                     .navigationBarsPadding()
             ) {
-                Crossfade(targetState = currentIndex, animationSpec = tween(300), label = "wrappedSlide") { index ->
-                    slides[index].content()
+                Crossfade(targetState = currentIndex, animationSpec = tween(320, easing = FastOutSlowInEasing), label = "wrappedSlide") { index ->
+                    GlassCard(content = { slides[index].content() })
                 }
             }
 
-            // Tap zones: left = back, right = next, hold = pause
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(slides.size) {
+                    .pointerInput(currentIndex, slides.size) {
                         detectTapGestures(
                             onPress = {
                                 isPaused = true
                                 tryAwaitRelease()
                                 isPaused = false
                             },
-                            onLongPress = { /* pause is already engaged via onPress */ },
+                            onLongPress = { isPaused = !isPaused },
                             onTap = { offset ->
                                 if (offset.x < size.width / 2f) {
                                     currentIndex = (currentIndex - 1).coerceAtLeast(0)
                                 } else if (currentIndex < slides.lastIndex) {
                                     currentIndex++
-                                } else {
-                                    onDismiss()
                                 }
                             }
                         )
                     }
             )
 
-            // Progress bar + branding + close
             Column(modifier = Modifier.fillMaxWidth().statusBarsPadding()) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -304,7 +308,7 @@ fun WrappedStoryScreen(
                                 .weight(1f)
                                 .height(3.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(Color.White.copy(alpha = 0.3f))
+                                .background(Color.White.copy(alpha = 0.28f))
                         ) {
                             Box(
                                 modifier = Modifier
@@ -316,8 +320,11 @@ fun WrappedStoryScreen(
                         }
                     }
                 }
+
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -326,12 +333,54 @@ fun WrappedStoryScreen(
                         Spacer(Modifier.width(6.dp))
                         Text("Habte Wrapped", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (currentIndex < slides.lastIndex) {
+                            TextButton(onClick = { currentIndex++ }) {
+                                Text("Next", color = Color.White, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White)
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun GradientOrb(color: Color, offset: Float) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Transparent)
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val radius = minOf(size.width, size.height) * (0.32f + offset * 0.25f)
+            val centerX = size.width * (0.22f + offset)
+            val centerY = size.height * (0.18f + offset * 0.5f)
+            drawCircle(
+                color = color,
+                radius = radius,
+                center = Offset(centerX, centerY)
+            )
+        }
+    }
+}
+
+@Composable
+private fun GlassCard(content: @Composable () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 28.dp),
+        shape = RoundedCornerShape(28.dp),
+        color = Color.Black.copy(alpha = 0.12f),
+        tonalElevation = 0.dp,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+    ) {
+        content()
     }
 }
 

@@ -46,6 +46,7 @@ import com.mobile.data.FinanceRepository
 import com.mobile.data.PaymentReminderRepository
 import com.mobile.data.PersistedCrash
 import com.mobile.data.SettingsRepository
+import com.mobile.data.SmsObserver
 import com.mobile.data.SummaryScheduler
 import com.mobile.data.TransactionNotifier
 import com.mobile.ui.RootLayout
@@ -66,6 +67,16 @@ class MainActivity : AppCompatActivity() {
         handleNotificationTap(intent)
     }
 
+    override fun onResume() {
+        super.onResume()
+        SmsObserver.register(this)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        SmsObserver.unregister(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Installed before anything else can run, so nothing that follows in this
@@ -76,6 +87,7 @@ class MainActivity : AppCompatActivity() {
         FinanceRepository.init(this)
         PaymentReminderRepository.init(this)
         CertificateRepository.init(this)
+        SmsObserver.register(this)
         // App start — see AdMobService for what this actually does (SDK init + preloading
         // the one-shot ad formats).
         AdMobService.initialize(this)
@@ -103,9 +115,9 @@ class MainActivity : AppCompatActivity() {
             val privacyMode by SettingsRepository.privacyMode.collectAsState()
             val hasSeenOnboarding by SettingsRepository.hasSeenOnboarding.collectAsState()
 
-            // Update Privacy Mode (Screenshot Protection)
-            LaunchedEffect(privacyMode) {
-                if (privacyMode) {
+            // Update Privacy Mode (Screenshot Protection) - always enforce when app is locked
+            LaunchedEffect(privacyMode, isAuthenticated) {
+                if (privacyMode || !isAuthenticated) {
                     window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
                 } else {
                     window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -230,36 +242,43 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showBiometricPrompt(onResult: (Boolean) -> Unit) {
-        val executor = ContextCompat.getMainExecutor(this)
-        val biometricPrompt = BiometricPrompt(this, executor,
-            object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    super.onAuthenticationError(errorCode, errString)
-                    Toast.makeText(applicationContext, "Authentication error: $errString", Toast.LENGTH_SHORT).show()
-                    // The system prompt is dismissed after an error (e.g. user cancelled
-                    // or too many failed attempts) — report failure so the lock screen
-                    // can offer a "Try Again" action instead of hanging indefinitely.
-                    onResult(false)
-                }
+        if (isFinishing || isDestroyed) return
+        try {
+            val executor = ContextCompat.getMainExecutor(this)
+            val biometricPrompt = BiometricPrompt(this, executor,
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        super.onAuthenticationError(errorCode, errString)
+                        if (!isFinishing && !isDestroyed) {
+                            Toast.makeText(applicationContext, "Authentication error: $errString", Toast.LENGTH_SHORT).show()
+                        }
+                        onResult(false)
+                    }
 
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    super.onAuthenticationSucceeded(result)
-                    onResult(true)
-                }
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        super.onAuthenticationSucceeded(result)
+                        onResult(true)
+                    }
 
-                override fun onAuthenticationFailed() {
-                    super.onAuthenticationFailed()
-                    Toast.makeText(applicationContext, "Authentication failed", Toast.LENGTH_SHORT).show()
-                }
-            })
+                    override fun onAuthenticationFailed() {
+                        super.onAuthenticationFailed()
+                        if (!isFinishing && !isDestroyed) {
+                            Toast.makeText(applicationContext, "Authentication failed", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                })
 
-        val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Biometric login for Habte")
-            .setSubtitle("Log in using your biometric credential")
-            .setNegativeButtonText("Use account password")
-            .build()
+            val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Biometric login for Habte")
+                .setSubtitle("Log in using your biometric credential")
+                .setNegativeButtonText("Use account password")
+                .build()
 
-        biometricPrompt.authenticate(promptInfo)
+            biometricPrompt.authenticate(promptInfo)
+        } catch (t: Throwable) {
+            android.util.Log.e("MainActivity", "Biometric authentication failed to start", t)
+            onResult(false)
+        }
     }
 }
 
@@ -316,7 +335,7 @@ private fun PinLockScreen(onUnlocked: () -> Unit, onUseBiometricInstead: (() -> 
             )
             if (error != null) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(text = error!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                Text(text = error.orEmpty(), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
             }
             Spacer(modifier = Modifier.height(20.dp))
             Button(

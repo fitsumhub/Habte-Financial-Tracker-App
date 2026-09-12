@@ -185,7 +185,7 @@ object InstitutionCatalog {
             colorFrom = "#451A03", colorTo = "#D97706", logoText = "BNA",
             logoResId = R.drawable.logo_bunna,
             domain = "bunnabanksc.com",
-            smsContains = listOf("bunna"),
+            smsContains = listOf("bunna", "buna"),
             supportedAccountTypes = standardBankAccountTypes
         ),
         InstitutionProfile(

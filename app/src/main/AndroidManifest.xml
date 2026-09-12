@@ -8,6 +8,10 @@
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+
     <!--
       Android 11+ hides other apps' package info by default (package visibility) unless
       declared here — this is what lets InstalledBankAppMatcher actually see installed
@@ -22,7 +26,9 @@
     </queries>
 
     <application
+        android:name=".HabteApplication"
         android:allowBackup="true"
+        android:largeHeap="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -70,6 +76,81 @@
         </receiver>
 
         <!--
+          Automated Weekly Spending Digest Widget: displays live weekly budget progress
+          and today's total outflow at a glance on the Homescreen and Keyguard / Lockscreen.
+        -->
+        <!-- 1. Style 1: Weekly Spending Digest Widget -->
+        <receiver
+            android:name=".data.WeeklySpendingWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_spending_digest_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.mobile.ACTION_REFRESH_SPENDING_WIDGET" />
+                <action android:name="com.mobile.ACTION_UPDATE_SPENDING_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/weekly_spending_widget_info" />
+        </receiver>
+
+        <!-- 2. Style 2: Net Worth Widget -->
+        <receiver
+            android:name=".data.NetWorthWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_net_worth_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.mobile.ACTION_REFRESH_NET_WORTH_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/net_worth_widget_info" />
+        </receiver>
+
+        <!-- 3. Style 3: Quick Transaction Tracker Widget -->
+        <receiver
+            android:name=".data.QuickTrackerWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_quick_tracker_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.mobile.ACTION_REFRESH_QUICK_TRACKER_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/quick_tracker_widget_info" />
+        </receiver>
+
+        <!-- 4. Style 4: Multi-Bank Balances Widget -->
+        <receiver
+            android:name=".data.MultiBankWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_multi_bank_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.mobile.ACTION_REFRESH_MULTI_BANK_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/multi_bank_widget_info" />
+        </receiver>
+
+        <!-- 5. Style 5: Budget Pulse Lockscreen Widget -->
+        <receiver
+            android:name=".data.BudgetPulseWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_budget_pulse_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.mobile.ACTION_REFRESH_BUDGET_PULSE_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/budget_pulse_widget_info" />
+        </receiver>
+
+        <!--
           Only the system can bind to a NotificationListenerService (enforced by this
           android:permission — a normal app can't bind to it directly), and only after the
           user manually grants it in Settings > Notification access (see
@@ -83,7 +164,7 @@
         -->
         <service
             android:name=".data.NotificationCaptureListenerService"
-            android:exported="false"
+            android:exported="true"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />

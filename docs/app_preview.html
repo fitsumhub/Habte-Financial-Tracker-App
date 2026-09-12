@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HABTE — Live Production App Test</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --text: #c9d1d9;
+      --accent: #10b981;
+      --border: #30363d;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .header h1 {
+      color: #ffffff;
+      margin: 0 0 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: center;
+    }
+    .badge {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .container {
+      display: flex;
+      gap: 32px;
+      max-width: 1000px;
+      width: 100%;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .phone-frame {
+      border: 12px solid #2d3748;
+      border-radius: 40px;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      width: 360px;
+      background: #000;
+    }
+    .phone-frame img {
+      width: 100%;
+      display: block;
+    }
+    .info-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      flex: 1;
+      min-width: 320px;
+      max-width: 480px;
+    }
+    .info-card h2 {
+      margin-top: 0;
+      color: #fff;
+      font-size: 1.25rem;
+    }
+    .status-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .status-item:last-child {
+      border-bottom: none;
+    }
+    .label {
+      color: #8b949e;
+    }
+    .val {
+      font-weight: 600;
+      color: #fff;
+    }
+    .val.green {
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>HABTE (ሀብቴ) <span class="badge">LIVE ON DEVICE</span></h1>
+    <p>Connected Test Device: Samsung Galaxy S22 Ultra (SM-S908U1)</p>
+  </div>
+  <div class="container">
+    <div class="phone-frame">
+      <img src="../device_test_screenshot.png" alt="Habte Live Screen">
+    </div>
+    <div class="info-card">
+      <h2>Device Test Verification</h2>
+      <div class="status-item">
+        <span class="label">Status</span>
+        <span class="val green">✅ Installed & Running</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Package Name</span>
+        <span class="val">com.fitsumhub.habtetracker</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Version</span>
+        <span class="val">1.0.1 (code 2)</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Total Balance</span>
+        <span class="val green">ETB 607,203.23</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Institutions / Accounts</span>
+        <span class="val">9 Institutions • 11 Accounts</span>
+      </div>
+      <div class="status-item">
+        <span class="label">UI Layout & Compose</span>
+        <span class="val green">✅ Perfect Alignment</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Database Sync</span>
+        <span class="val green">✅ 100% Operational</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+

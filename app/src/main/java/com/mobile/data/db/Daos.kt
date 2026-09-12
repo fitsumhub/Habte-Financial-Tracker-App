@@ -12,6 +12,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY date DESC")
     fun observeAll(): Flow<List<TransactionEntity>>
 
+    @Query("SELECT * FROM transactions ORDER BY date DESC")
+    suspend fun getAll(): List<TransactionEntity>
+
     // Ignores rows that already exist so a re-sync of the SMS inbox never clobbers
     // a category/reason the user already edited on a previously-imported transaction.
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -42,6 +45,12 @@ interface BankDao {
     @Query("SELECT * FROM banks")
     fun observeAllWithAccounts(): Flow<List<BankWithAccounts>>
 
+    @Query("SELECT * FROM banks")
+    suspend fun getAll(): List<BankEntity>
+
+    @Query("SELECT COUNT(*) FROM banks")
+    suspend fun count(): Int
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(bank: BankEntity)
 
@@ -66,6 +75,9 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE bankId = :bankId")
     suspend fun getForBank(bankId: String): List<AccountEntity>
 
+    @Query("SELECT * FROM accounts WHERE bankId = :bankId AND canonicalKey = :canonicalKey LIMIT 1")
+    suspend fun findByCanonicalKey(bankId: String, canonicalKey: String): AccountEntity?
+
     @Query("UPDATE accounts SET balance = :balance WHERE id = :id")
     suspend fun updateBalance(id: String, balance: Double)
 
@@ -74,6 +86,20 @@ interface AccountDao {
     // full account number so it can actually be shared with customers. See AccountDetailSheet.
     @Query("UPDATE accounts SET accountNumber = :accountNumber WHERE id = :id")
     suspend fun updateAccountNumber(id: String, accountNumber: String)
+
+    // Promotes a suffix-less "Main Account" placeholder to a properly-identified suffixed
+    // account when a later SMS reveals the real account suffix.
+    @Query("UPDATE accounts SET accountNumber = :accountNumber, label = :label, canonicalKey = :canonicalKey WHERE id = :id")
+    suspend fun upgradeToSuffixed(id: String, accountNumber: String, label: String, canonicalKey: String)
+
+    @Query("UPDATE accounts SET canonicalKey = :canonicalKey WHERE id = :id")
+    suspend fun updateCanonicalKey(id: String, canonicalKey: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrReplace(account: AccountEntity)
+
+    @Query("DELETE FROM accounts WHERE id = :id")
+    suspend fun deleteById(id: String)
 
     @Query("DELETE FROM accounts")
     suspend fun deleteAll()

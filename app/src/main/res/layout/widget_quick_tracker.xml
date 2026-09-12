@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_card_background"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="10dp">
+
+    <!-- Activity Indicator Badge -->
+    <ImageView
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:layout_marginEnd="8dp"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_widget_sparkle" />
+
+    <!-- Latest Tx Info Column -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingEnd="8dp">
+
+        <TextView
+            android:id="@+id/widget_tx_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Latest Activity"
+            android:textColor="#F8FAFC"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_tx_sub"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="No transactions recorded yet"
+            android:textColor="#94A3B8"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <!-- Tx Amount Pill -->
+    <TextView
+        android:id="@+id/widget_tx_amount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:background="@drawable/widget_stat_box_bg"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"
+        android:text="ETB 0.00"
+        android:textColor="#F87171"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <!-- Refresh Button -->
+    <ImageView
+        android:id="@+id/widget_btn_refresh"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:background="@drawable/widget_stat_box_bg"
+        android:contentDescription="Refresh"
+        android:padding="3dp"
+        android:src="@drawable/ic_widget_refresh" />
+
+</LinearLayout>

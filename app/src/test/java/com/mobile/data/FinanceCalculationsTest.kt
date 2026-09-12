@@ -543,4 +543,80 @@ class FinanceCalculationsTest {
     fun `formatDisplayDate falls back to the original string for an unknown format setting`() {
         assertEquals("Jan 15, 2026", formatDisplayDate("Jan 15, 2026", "Some Unknown Setting"))
     }
+
+    // ── Daily Summary & Locale Independence Tests ────────────────────────────────────
+
+    @Test
+    fun `parseTransactionDate succeeds under non-US default locale`() {
+        val originalLocale = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.FRANCE)
+            val parsed = parseTransactionDate("Sep 03, 2026")
+            assertTrue(parsed != null)
+            assertEquals(2026, parsed!!.get(Calendar.YEAR))
+            assertEquals(Calendar.SEPTEMBER, parsed.get(Calendar.MONTH))
+            assertEquals(3, parsed.get(Calendar.DAY_OF_MONTH))
+        } finally {
+            java.util.Locale.setDefault(originalLocale)
+        }
+    }
+
+    @Test
+    fun `daily summary filtering correctly excludes transactions older than sinceMillis`() {
+        val nowMillis = calendarOf(2026, Calendar.SEPTEMBER, 3, hour = 20).timeInMillis
+        val sinceMillis = nowMillis - (24 * 60 * 60 * 1000L) // 24h ago
+
+        val todayTx = txAt("1", "debit", 100.0, calendarOf(2026, Calendar.SEPTEMBER, 3, hour = 10))
+        val oldTx = txAt("2", "debit", 500.0, calendarOf(2026, Calendar.AUGUST, 20, hour = 10))
+
+        val transactions = listOf(todayTx, oldTx)
+
+        val filtered = transactions.filter { tx ->
+            val txMillis = transactionTimestampMillis(tx) ?: parseTransactionDate(tx.date)?.timeInMillis
+            txMillis != null && txMillis >= sinceMillis
+        }
+
+        assertEquals(1, filtered.size)
+        assertEquals("1", filtered.single().id)
+    }
+
+    @Test
+    fun `daily summary filtering returns empty list when no transactions occur in 24h window`() {
+        val nowMillis = calendarOf(2026, Calendar.SEPTEMBER, 3, hour = 20).timeInMillis
+        val sinceMillis = nowMillis - (24 * 60 * 60 * 1000L) // 24h ago
+
+        val oldTx = txAt("old", "debit", 500.0, calendarOf(2026, Calendar.AUGUST, 20, hour = 10))
+        val transactions = listOf(oldTx)
+
+        val filtered = transactions.filter { tx ->
+            val txMillis = transactionTimestampMillis(tx) ?: parseTransactionDate(tx.date)?.timeInMillis
+            txMillis != null && txMillis >= sinceMillis
+        }
+
+        assertTrue(filtered.isEmpty())
+    }
+
+    @Test
+    fun `getTotalBalance correctly subtracts hidden account balances`() {
+        val acc1 = Account("acc1", "cbe", "1000", "Savings", 50000.0, "ETB", AccountType.SAVINGS)
+        val acc2 = Account("acc2", "cbe", "2000", "Salary", 20000.0, "ETB", AccountType.SALARY)
+        val bank = Bank(
+            id = "cbe",
+            name = "Commercial Bank of Ethiopia",
+            shortName = "CBE",
+            accounts = listOf(acc1, acc2),
+            colorFrom = "#000000",
+            colorTo = "#111111",
+            logoText = "CBE"
+        )
+
+        val fullTotal = Data.getTotalBalance(listOf(bank))
+        assertEquals(70000.0, fullTotal, 0.01)
+
+        val hiddenTotal = Data.getTotalBalance(listOf(bank), setOf("acc2"))
+        assertEquals(50000.0, hiddenTotal, 0.01)
+
+        val bankTotal = Data.getBankTotal(bank, setOf("acc1"))
+        assertEquals(20000.0, bankTotal, 0.01)
+    }
 }
